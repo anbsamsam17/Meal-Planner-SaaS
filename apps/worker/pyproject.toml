@@ -17,8 +17,6 @@ dependencies = [
   "httpx>=0.27",
   "tenacity>=8.3",
   "scrapy>=2.11",
-  "playwright>=1.44",
-  "sentence-transformers>=3.0",
   # Swap Anthropic → Gemini (2026-04-12) : free tier 15 req/min suffisant pour batch nocturne
   "google-genai>=1.0",
   "beautifulsoup4>=4.12",
@@ -33,7 +31,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# anthropic conservé en optionnel — réactivable via LLM_PROVIDER=anthropic
+# sentence-transformers + playwright en optionnel (PyTorch = +2.5GB, dépasse limite Railway 4GB)
+# Installer via : uv pip install 'mealplanner-worker[ml]'
+ml = [
+  "sentence-transformers>=3.0",
+  "playwright>=1.44",
+]
 anthropic = [
   "anthropic>=0.34",
 ]

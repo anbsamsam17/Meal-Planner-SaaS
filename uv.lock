@@ -1780,12 +1780,10 @@ dependencies = [
     { name = "lxml" },
     { name = "mealplanner-db" },
     { name = "pgvector" },
-    { name = "playwright" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-slugify" },
     { name = "scrapy" },
-    { name = "sentence-transformers" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "tenacity" },
     { name = "weasyprint" },
@@ -1801,6 +1799,10 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "responses" },
+]
+ml = [
+    { name = "playwright" },
+    { name = "sentence-transformers" },
 ]
 
 [package.metadata]
@@ -1818,7 +1820,7 @@ requires-dist = [
     { name = "lxml", specifier = ">=5.2" },
     { name = "mealplanner-db", editable = "packages/db" },
     { name = "pgvector", specifier = ">=0.3" },
-    { name = "playwright", specifier = ">=1.44" },
+    { name = "playwright", marker = "extra == 'ml'", specifier = ">=1.44" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pydantic-settings", specifier = ">=2.3" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
@@ -1827,12 +1829,12 @@ requires-dist = [
     { name = "python-slugify", specifier = ">=8.0" },
     { name = "responses", marker = "extra == 'dev'", specifier = ">=0.25" },
     { name = "scrapy", specifier = ">=2.11" },
-    { name = "sentence-transformers", specifier = ">=3.0" },
+    { name = "sentence-transformers", marker = "extra == 'ml'", specifier = ">=3.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "tenacity", specifier = ">=8.3" },
     { name = "weasyprint", specifier = ">=60.0" },
 ]
-provides-extras = ["anthropic", "dev"]
+provides-extras = ["ml", "anthropic", "dev"]
 
 [[package]]
 name = "mmh3"
