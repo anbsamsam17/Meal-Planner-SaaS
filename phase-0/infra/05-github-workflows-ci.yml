@@ -1,0 +1,401 @@
+# .github/workflows/ci.yml
+#
+# Pipeline CI principale — MealPlanner SaaS
+#
+# Déclencheurs :
+#   - push sur toutes les branches
+#   - pull_request vers main et staging
+#
+# Architecture des jobs (parallèles sauf dépendances explicites) :
+#   lint-web      → lint et typecheck Next.js
+#   lint-api      → ruff + mypy Python
+#   test-api      → pytest avec PostgreSQL + Redis
+#   test-web      → vitest
+#   security      → pip-audit + pnpm audit + gitleaks
+#   build-docker  → build images api+worker, push sur GHCR (sur main uniquement)
+
+name: CI
+
+# FIX #8 (review 2026-04-12) : permissions root restrictives — chaque job surcharge si besoin.
+# La valeur par défaut GitHub Actions inclut contents: write (trop large).
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - main
+      - staging
+
+# Annule les runs en cours si un nouveau push arrive sur la même branche
+# Évite les congestions CI sur des branches actives
+# FIX #8 (review 2026-04-12) : cancel-in-progress: true sur main pouvait interrompre
+# un déploiement Railway en plein rolling deploy. Désactivé sur refs/heads/main.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  # Registry GitHub Container Registry
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+
+  # ===========================================================================
+  # lint-web : Lint et typecheck Next.js
+  # ===========================================================================
+  lint-web:
+    name: Lint Next.js
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      # Cache pnpm store entre les runs — évite de re-télécharger les packages
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: ESLint
+        run: pnpm lint
+
+      # --noEmit : vérifie les types sans produire de fichiers de sortie
+      - name: TypeScript check
+        run: pnpm tsc --noEmit
+
+  # ===========================================================================
+  # lint-api : Qualité du code Python (ruff + mypy)
+  # ===========================================================================
+  lint-api:
+    name: Lint FastAPI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.5.18"
+          enable-cache: true
+
+      - name: Setup Python 3.12
+        run: uv python install 3.12
+
+      # Cache uv — les dépendances Python ne changent que si uv.lock change
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('apps/api/uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # ruff check : linter Python ultra-rapide (remplace flake8 + isort + pyupgrade)
+      - name: Ruff check
+        run: uv run ruff check src/
+
+      # ruff format : vérification du formatage (PEP 8 + opinions ruff)
+      - name: Ruff format check
+        run: uv run ruff format --check src/
+
+      # mypy : vérification statique des types Python
+      - name: Mypy
+        run: uv run mypy src/ --ignore-missing-imports
+
+      # pytest --collect-only : vérifie que tous les tests sont découvrables
+      # (détecte les erreurs d'import dans les tests sans les exécuter)
+      - name: Pytest collection check
+        run: uv run pytest --collect-only -q tests/
+
+  # ===========================================================================
+  # test-api : Tests pytest avec vraie base de données
+  # Utilise les services GitHub Actions (postgres + redis en containers)
+  # ===========================================================================
+  test-api:
+    name: Test FastAPI
+    runs-on: ubuntu-latest
+    needs: lint-api
+
+    # Services GitHub Actions : démarrés avant les steps, accessibles via localhost
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_mealplanner
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test_user -d test_mealplanner"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Variables d'environnement injectées pour les tests
+      # Ces valeurs sont destinées UNIQUEMENT aux tests — pas de secrets réels
+      DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_mealplanner
+      REDIS_URL: redis://localhost:6379/0
+      ENVIRONMENT: test
+      # Clés factices pour les tests (les appels API réels sont mockés)
+      ANTHROPIC_API_KEY: test_key_anthropic
+      SUPABASE_URL: http://localhost
+      SUPABASE_ANON_KEY: test_anon_key
+      SUPABASE_SERVICE_ROLE_KEY: test_service_role_key
+
+    defaults:
+      run:
+        working-directory: apps/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.5.18"
+          enable-cache: true
+
+      - name: Setup Python 3.12
+        run: uv python install 3.12
+
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('apps/api/uv.lock') }}
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # pytest avec :
+      # --cov=src         : coverage sur le répertoire src/
+      # --cov-report=xml  : rapport XML pour Codecov / SonarCloud
+      # --cov-fail-under=80 : CI fail si coverage < 80% (règle ROADMAP)
+      # -v                : output verbeux pour le débogage CI
+      - name: Run tests
+        run: |
+          uv run pytest tests/ \
+            --cov=src \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-fail-under=80 \
+            -v
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        with:
+          file: apps/api/coverage.xml
+          flags: api
+          fail_ci_if_error: false
+
+  # ===========================================================================
+  # test-web : Tests Next.js avec vitest
+  # ===========================================================================
+  test-web:
+    name: Test Next.js
+    runs-on: ubuntu-latest
+    needs: lint-web
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run vitest
+        run: pnpm test --coverage
+
+  # ===========================================================================
+  # security : Scans de sécurité automatisés
+  # ===========================================================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # fetch-depth=0 requis pour gitleaks (scan de tout l'historique git)
+          fetch-depth: 0
+
+      # pip-audit : vérifie les CVE dans les dépendances Python
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.5.18"
+          enable-cache: true
+
+      # FIX #8 (review 2026-04-12) : uv sync manquant avant pip-audit → "No Python packages found"
+      # L'environnement venv doit exister pour que pip-audit puisse inspecter les dépendances.
+      - name: Install Python dependencies (API)
+        working-directory: apps/api
+        run: uv sync --frozen
+
+      - name: pip-audit (API)
+        working-directory: apps/api
+        run: |
+          uv run pip-audit --strict --output json 2>/dev/null | \
+            python3 -c "import json,sys; data=json.load(sys.stdin); \
+            vulns=[v for p in data for v in p.get('vulns',[])] if isinstance(data,list) else []; \
+            sys.exit(1 if vulns else 0)" || \
+          (echo "Vulnérabilités Python détectées — consultez le rapport ci-dessus" && exit 1)
+
+      # pnpm audit : CVE dans les dépendances JavaScript
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: pnpm audit
+        run: pnpm audit --audit-level=high
+        continue-on-error: true
+
+      # gitleaks : scan des secrets hardcodés dans le code (règle ROADMAP absolue)
+      - name: Gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # ===========================================================================
+  # build-docker : Build et push des images Docker sur GHCR
+  # Exécuté uniquement sur la branche main (pas sur les PR)
+  # ===========================================================================
+  build-docker:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [test-api, test-web, security]
+    # Condition : uniquement sur push main (pas sur les PR ni les autres branches)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Login sur GitHub Container Registry avec le token automatique GitHub Actions
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Buildx pour le cache multi-plateforme
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Calcul des tags Docker :
+      # - sha court du commit pour la traçabilité
+      # - 'latest' pour le déploiement Railway
+      - name: Docker metadata (api)
+        id: meta-api
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/mealplanner-api
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable=true
+
+      - name: Docker metadata (worker)
+        id: meta-worker
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/mealplanner-worker
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable=true
+
+      # Build et push image API
+      # Cache GitHub Actions : évite de re-builder les couches inchangées
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      # Build et push image Worker
+      - name: Build and push Worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/worker/Dockerfile
+          push: true
+          tags: ${{ steps.meta-worker.outputs.tags }}
+          labels: ${{ steps.meta-worker.outputs.labels }}
+          cache-from: type=gha,scope=worker
+          cache-to: type=gha,mode=max,scope=worker

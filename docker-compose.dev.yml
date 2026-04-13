@@ -1,0 +1,187 @@
+# docker-compose.dev.yml — Environnement de développement local
+#
+# Usage depuis la racine du monorepo :
+#   docker compose -f docker-compose.dev.yml up -d
+#   docker compose -f docker-compose.dev.yml ps         # statut des services
+#   docker compose -f docker-compose.dev.yml down -v    # arrêt + suppression volumes
+#
+# Ce fichier démarre tous les services d'infrastructure nécessaires au dev local.
+# Les applications (api, worker, web) tournent en dehors de Docker pour bénéficier
+# du hot-reload natif de FastAPI (uvicorn --reload) et Next.js (HMR).
+#
+# Services inclus :
+#   - postgres  : PostgreSQL 16 avec extension pgvector (remplace Supabase en local)
+#   - redis     : Redis 7 (broker Celery + cache applicatif)
+#   - mailhog   : Serveur SMTP de test (capture les emails sans les envoyer)
+#   - minio     : Object storage compatible S3 (fallback local pour Cloudflare R2)
+#   - minio-init: Job one-shot qui crée les buckets MinIO au démarrage
+#
+# Ports exposés (hôte → container) :
+#   5433:5432 → PostgreSQL (port hôte 5433 pour éviter conflit avec PG local sur 5432)
+#   6379:6379 → Redis
+#   1025:1025 → MailHog SMTP | 8025:8025 → MailHog Web UI
+#   9000:9000 → MinIO API S3 | 9001:9001 → MinIO Console
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16 avec pgvector
+  # Image pgvector/pgvector inclut l'extension vecteur prête à l'emploi.
+  # En production, c'est Supabase qui gère Postgres — cette instance est
+  # exclusivement pour le développement local et les tests CI.
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: mealplanner_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mealplanner
+      POSTGRES_PASSWORD: mealplanner_dev_password
+      POSTGRES_DB: mealplanner_dev
+      # Activation automatique de pgvector au démarrage
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5433:5432"
+    volumes:
+      # Persistance des données entre les redémarrages Docker
+      - postgres_data:/var/lib/postgresql/data
+      # Scripts d'initialisation SQL (active pgvector, crée les schémas de base)
+      # Le backend-developer créera ce dossier avec les scripts d'init SQL
+      - ./infra/docker/init-scripts/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mealplanner -d mealplanner_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - mealplanner_dev
+
+  # ---------------------------------------------------------------------------
+  # Redis 7 — Broker Celery + cache applicatif
+  # Mode AOF (Append Only File) activé pour ne pas perdre les tâches Celery
+  # en cas de redémarrage du container.
+  #
+  # FIX #5 (review 2026-04-12) : allkeys-lru évincait des tâches Celery sans TTL
+  # (perte silencieuse de jobs). volatile-lru n'évince que les clés avec TTL
+  # explicite — les messages Celery (sans TTL) ne seront jamais évincés.
+  # En production Railway, dimensionner Redis à 512 MB minimum.
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: mealplanner_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 256mb
+      --maxmemory-policy volatile-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - mealplanner_dev
+
+  # ---------------------------------------------------------------------------
+  # MailHog — Serveur SMTP de développement
+  # Capture tous les emails envoyés par l'application (Resend pointe ici en dev).
+  # Interface web : http://localhost:8025
+  # SMTP : port 1025 (configurer SMTP_HOST=localhost, SMTP_PORT=1025 dans .env.local)
+  # ---------------------------------------------------------------------------
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: mealplanner_mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Interface web MailHog
+    networks:
+      - mealplanner_dev
+    # MailHog ne nécessite pas de volumes — les emails sont en mémoire uniquement
+
+  # ---------------------------------------------------------------------------
+  # MinIO — Object Storage compatible S3 (fallback local pour Cloudflare R2)
+  # En dev : configurer R2_ENDPOINT=http://localhost:9000 dans .env.local
+  # Console web : http://localhost:9001 (presto_access_key / presto_minio_password)
+  #
+  # Pourquoi MinIO plutôt que localstack :
+  # MinIO est plus léger, démarre plus vite, et son API S3 est 100 % compatible
+  # avec le SDK boto3/aioboto3 utilisé pour Cloudflare R2.
+  # ---------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: mealplanner_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: mealplanner_access_key
+      MINIO_ROOT_PASSWORD: mealplanner_minio_password
+    ports:
+      - "9000:9000"   # API S3
+      - "9001:9001"   # Console web MinIO
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      # FIX #3 (review 2026-04-12) : mc n'est pas dans l'image minio/minio.
+      # Remplacement par l'endpoint natif HTTP MinIO — ne dépend d'aucun binaire externe.
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - mealplanner_dev
+
+  # ---------------------------------------------------------------------------
+  # MinIO Init — Crée les buckets nécessaires au démarrage
+  # Job one-shot : s'exécute une fois puis s'arrête (restart: no).
+  # Attend que MinIO soit healthy avant de s'exécuter.
+  # ---------------------------------------------------------------------------
+  minio-init:
+    image: minio/mc:latest
+    container_name: mealplanner_minio_init
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 mealplanner_access_key mealplanner_minio_password &&
+        mc mb --ignore-existing local/mealplanner-pdfs &&
+        mc mb --ignore-existing local/mealplanner-images &&
+        mc anonymous set download local/mealplanner-pdfs &&
+        mc anonymous set download local/mealplanner-images &&
+        echo 'Buckets MinIO créés avec policy publique download'
+      "
+    networks:
+      - mealplanner_dev
+
+# =============================================================================
+# Volumes persistants
+# Les données survivent aux redémarrages Docker (mais pas à `docker compose down -v`)
+# =============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+
+# =============================================================================
+# Réseau isolé
+# Tous les services communiquent sur ce réseau interne.
+# Les ports exposés ci-dessus sont uniquement pour l'accès depuis l'hôte.
+# =============================================================================
+networks:
+  mealplanner_dev:
+    driver: bridge
+    name: mealplanner_dev

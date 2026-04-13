@@ -1,0 +1,12 @@
+# pnpm-workspace.yaml — Configuration des workspaces pnpm
+#
+# Seuls les projets JavaScript/TypeScript sont inclus.
+# apps/api et apps/worker sont des projets Python — gérés par uv, pas pnpm.
+#
+# Documentation : https://pnpm.io/workspaces
+
+packages:
+  # Application Next.js (dashboard frontend)
+  - "apps/web"
+  # Packages partagés TypeScript (types générés depuis OpenAPI, utilitaires)
+  - "packages/*"

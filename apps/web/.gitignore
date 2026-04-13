@@ -1,0 +1,33 @@
+# =============================================================================
+# apps/web/.gitignore — Next.js frontend
+# Couvre les artefacts de build Next.js et les fichiers d'env locaux
+# =============================================================================
+
+# Build Next.js
+.next/
+out/
+
+# Dépendances JavaScript
+node_modules/
+
+# Fichiers d'environnement locaux (jamais commiter les secrets)
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Garder .env.example (template sans secrets)
+!.env.example
+
+# TypeScript build info (généré automatiquement)
+tsconfig.tsbuildinfo
+
+# Rapports de couverture
+coverage/
+
+# Cache pnpm local
+.pnpm-debug.log*
+
+# macOS
+.DS_Store

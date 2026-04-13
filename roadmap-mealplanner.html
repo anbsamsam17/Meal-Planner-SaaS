@@ -1,0 +1,1720 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roadmap — Meal Planner SaaS</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #0e0f0e;
+  --surface: #161917;
+  --surface2: #1e221f;
+  --border: #2a2f2b;
+  --border-light: #353c37;
+  --text: #e8ede9;
+  --muted: #7a8c7d;
+  --accent: #a8d5a2;
+  --accent2: #d4a843;
+  --accent3: #e07a5f;
+  --accent4: #6fa8dc;
+  --accent5: #b488d4;
+  --white: #f5f7f5;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 300;
+  line-height: 1.6;
+  padding: 0 0 6rem;
+}
+
+/* ─── HERO ─── */
+.hero {
+  padding: 4rem 2rem 3rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -60px; right: -80px;
+  width: 400px; height: 400px;
+  background: radial-gradient(ellipse, rgba(168,213,162,0.07) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero-eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.hero-eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 24px; height: 1px;
+  background: var(--accent);
+}
+
+h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(2.8rem, 7vw, 5.5rem);
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  color: var(--white);
+  margin-bottom: 0.25rem;
+}
+
+h1 em {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.hero-sub {
+  font-size: 1rem;
+  color: var(--muted);
+  margin-top: 1.25rem;
+  max-width: 680px;
+  font-weight: 300;
+}
+
+.hero-meta {
+  display: flex;
+  gap: 2rem;
+  margin-top: 2rem;
+  flex-wrap: wrap;
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.meta-val {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--white);
+  line-height: 1;
+}
+
+.meta-lbl {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ─── LAYOUT ─── */
+.wrapper {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+/* ─── SECTION TITLES ─── */
+.section {
+  margin-top: 4rem;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 0.2rem 0.5rem;
+}
+
+.section-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--white);
+  letter-spacing: -0.02em;
+}
+
+.section-title em { font-style: italic; color: var(--accent); }
+
+/* ─── CONCURRENTS TABLE ─── */
+.comp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+
+.comp-card {
+  background: var(--surface);
+  padding: 1.25rem;
+}
+
+.comp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.comp-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--white);
+}
+
+.comp-origin {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  padding: 0.2rem 0.5rem;
+  background: var(--surface2);
+  border: 1px solid var(--border-light);
+  color: var(--muted);
+}
+
+.comp-tagline {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 0.75rem;
+  font-style: italic;
+}
+
+.comp-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+  align-items: flex-start;
+}
+
+.comp-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  width: 70px;
+  flex-shrink: 0;
+  padding-top: 0.1rem;
+}
+
+.comp-val {
+  font-size: 0.82rem;
+  color: var(--text);
+  flex: 1;
+}
+
+.comp-val.green { color: var(--accent); }
+.comp-val.red   { color: var(--accent3); }
+.comp-val.gold  { color: var(--accent2); }
+
+.gap-box {
+  background: var(--surface2);
+  border: 1px solid var(--border-light);
+  border-left: 3px solid var(--accent);
+  padding: 1rem 1.25rem;
+  margin-top: 1.25rem;
+}
+
+.gap-box h4 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.6rem;
+}
+
+.gap-box ul {
+  list-style: none;
+}
+
+.gap-box ul li {
+  font-size: 0.88rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 0.6rem;
+}
+
+.gap-box ul li:last-child { border-bottom: none; }
+
+.gap-box ul li::before {
+  content: '→';
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* ─── DIFFERENTIANTS ─── */
+.diff-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+.diff-card {
+  background: var(--surface);
+  padding: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.diff-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px;
+  height: 100%;
+}
+
+.diff-card.c1::after { background: var(--accent); }
+.diff-card.c2::after { background: var(--accent2); }
+.diff-card.c3::after { background: var(--accent3); }
+.diff-card.c4::after { background: var(--accent4); }
+.diff-card.c5::after { background: var(--accent5); }
+.diff-card.c6::after { background: #e8c4a0; }
+
+.diff-icon {
+  font-size: 1.5rem;
+  margin-bottom: 0.75rem;
+  display: block;
+}
+
+.diff-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--white);
+  margin-bottom: 0.5rem;
+}
+
+.diff-desc {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.diff-badge {
+  margin-top: 0.75rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border-light);
+  display: inline-block;
+  color: var(--muted);
+}
+
+/* ─── ROADMAP PHASES ─── */
+.phases { display: flex; flex-direction: column; gap: 1.5rem; }
+
+.phase {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.phase-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 1.5rem;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.phase-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.8rem;
+  border: 1.5px solid;
+  white-space: nowrap;
+}
+
+.phase-badge.v0 { border-color: var(--accent3); color: var(--accent3); }
+.phase-badge.v1 { border-color: var(--accent2); color: var(--accent2); }
+.phase-badge.v2 { border-color: var(--accent); color: var(--accent); }
+.phase-badge.v3 { border-color: var(--accent4); color: var(--accent4); }
+.phase-badge.v4 { border-color: var(--accent5); color: var(--accent5); }
+
+.phase-title-wrap {}
+
+.phase-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--white);
+  letter-spacing: -0.01em;
+}
+
+.phase-duration {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.62rem;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  margin-top: 0.15rem;
+}
+
+.phase-kpi {
+  text-align: right;
+}
+
+.kpi-val {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.2rem;
+  color: var(--white);
+  line-height: 1;
+  display: block;
+}
+
+.kpi-lbl {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.58rem;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  display: block;
+  margin-top: 0.1rem;
+}
+
+.phase-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+}
+
+@media (max-width: 700px) {
+  .phase-body { grid-template-columns: 1fr; }
+  .phase-head { grid-template-columns: 1fr 1fr; }
+  .phase-kpi { display: none; }
+}
+
+.phase-col {
+  padding: 1.25rem 1.5rem;
+  border-right: 1px solid var(--border);
+}
+
+.phase-col:last-child { border-right: none; }
+
+.phase-col-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.phase-col-title .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-green { background: var(--accent); }
+.dot-orange { background: var(--accent2); }
+.dot-red { background: var(--accent3); }
+
+.task-list { list-style: none; }
+
+.task-item {
+  font-size: 0.83rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.task-item:last-child { border-bottom: none; }
+
+.task-item::before {
+  content: '▸';
+  color: var(--muted);
+  font-size: 0.7rem;
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+
+.task-item.priority { color: var(--white); font-weight: 500; }
+.task-item.priority::before { color: var(--accent2); content: '★'; }
+
+.task-item.danger::before { color: var(--accent3); content: '⚠'; }
+
+/* ─── TECH STACK ─── */
+.stack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+.stack-card {
+  background: var(--surface);
+  padding: 1.1rem 1.25rem;
+}
+
+.stack-layer {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+.stack-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.stack-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  padding: 0.25rem 0.6rem;
+  background: var(--surface2);
+  border: 1px solid var(--border-light);
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+
+/* ─── CHALLENGES ─── */
+.challenge-list { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.challenge {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 3rem 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+}
+
+.challenge-num {
+  font-family: 'Playfair Display', serif;
+  font-size: 2rem;
+  font-weight: 900;
+  color: var(--border-light);
+  line-height: 1;
+  text-align: center;
+}
+
+.challenge-content h4 {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--white);
+  margin-bottom: 0.25rem;
+}
+
+.challenge-content p {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.challenge-level {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+.level-high   { border-color: var(--accent3); color: var(--accent3); }
+.level-medium { border-color: var(--accent2); color: var(--accent2); }
+.level-low    { border-color: var(--accent);  color: var(--accent);  }
+
+/* ─── MONETISATION ─── */
+.mono-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+@media (max-width: 600px) { .mono-grid { grid-template-columns: 1fr; } }
+
+.mono-card {
+  background: var(--surface);
+  padding: 1.5rem;
+}
+
+.mono-card.featured {
+  background: var(--surface2);
+  border: 1px solid var(--accent);
+  position: relative;
+}
+
+.mono-card.featured::before {
+  content: 'RECOMMANDÉ';
+  position: absolute;
+  top: -1px; right: 1rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.12em;
+  background: var(--accent);
+  color: var(--bg);
+  padding: 0.2rem 0.5rem;
+}
+
+.mono-phase {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+.mono-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--white);
+  margin-bottom: 0.25rem;
+}
+
+.mono-price {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.mono-price span {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--muted);
+  font-family: 'Outfit', sans-serif;
+}
+
+.mono-desc {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0.75rem 0;
+  line-height: 1.6;
+}
+
+.mono-features { list-style: none; }
+
+.mono-features li {
+  font-size: 0.8rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 0.5rem;
+  color: var(--text);
+}
+
+.mono-features li:last-child { border-bottom: none; }
+.mono-features li::before { content: '✓'; color: var(--accent); }
+
+/* ─── AI AGENTS ─── */
+.agents-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+.agent-card {
+  background: var(--surface);
+  padding: 1.25rem;
+}
+
+.agent-icon {
+  font-size: 1.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.agent-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  margin-bottom: 0.3rem;
+}
+
+.agent-role {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--white);
+  margin-bottom: 0.5rem;
+}
+
+.agent-desc {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ─── KPI TARGETS ─── */
+.kpi-timeline {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+@media (max-width: 650px) { .kpi-timeline { grid-template-columns: repeat(2, 1fr); } }
+
+.kpi-col {
+  background: var(--surface);
+  padding: 1.25rem;
+}
+
+.kpi-month {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.75rem;
+}
+
+.kpi-item {
+  margin-bottom: 0.5rem;
+}
+
+.kpi-item-val {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--white);
+  line-height: 1;
+}
+
+.kpi-item-lbl {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* ─── RECIPE DB ─── */
+.recipe-sources {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  margin-bottom: 1.25rem;
+}
+
+.rsource {
+  background: var(--surface);
+  padding: 1rem 1.25rem;
+}
+
+.rsource-name {
+  font-weight: 500;
+  color: var(--white);
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.rsource-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--accent2);
+  margin-bottom: 0.35rem;
+}
+
+.rsource-desc {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* ─── PRIORITY MATRIX ─── */
+.matrix {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  height: 320px;
+}
+
+@media (max-width: 500px) { .matrix { height: auto; } }
+
+.quadrant {
+  background: var(--surface);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.q-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.q-label.green   { color: var(--accent); }
+.q-label.gold    { color: var(--accent2); }
+.q-label.blue    { color: var(--accent4); }
+.q-label.red     { color: var(--accent3); }
+
+.q-item {
+  font-size: 0.78rem;
+  color: var(--text);
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-start;
+}
+
+.q-item::before { content: '·'; color: var(--muted); }
+
+/* ─── FOOTER NOTE ─── */
+.footer-note {
+  margin-top: 4rem;
+  padding: 1.5rem 2rem;
+  border-top: 1px solid var(--border);
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.footer-note-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.footer-note p {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.footer-note strong { color: var(--text); }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ HERO ═══════════ -->
+<div class="hero">
+  <div class="hero-eyebrow">Roadmap Produit · Version 1.0</div>
+  <h1>Meal<br><em>Planner</em><br>SaaS</h1>
+  <p class="hero-sub">Planificateur de dîners hebdomadaires avec commande drive intégrée — le Jow premium, avec IA avancée, base de recettes mondiale, et expérience famille différenciée.</p>
+  <div class="hero-meta">
+    <div class="meta-item">
+      <span class="meta-val">18 mo</span>
+      <span class="meta-lbl">Durée roadmap</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-val">5</span>
+      <span class="meta-lbl">Phases de dev</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-val">6</span>
+      <span class="meta-lbl">Agents IA</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-val">50K+</span>
+      <span class="meta-lbl">Recettes cibles</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-val">9.99€</span>
+      <span class="meta-lbl">Prix cible</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrapper">
+
+<!-- ═══════════ 01 · ANALYSE CONCURRENTIELLE ═══════════ -->
+<div class="section">
+  <div class="section-head">
+    <span class="section-num">01</span>
+    <h2 class="section-title">Analyse <em>concurrentielle</em></h2>
+  </div>
+
+  <div class="comp-grid">
+
+    <div class="comp-card">
+      <div class="comp-header">
+        <div class="comp-name">Jow 🇫🇷</div>
+        <div class="comp-origin">Concurrent direct</div>
+      </div>
+      <div class="comp-tagline">"L'app française qui fait tes courses" — 9M utilisateurs, 33M€ levés</div>
+      <div class="comp-row"><span class="comp-label">Forces</span><span class="comp-val green">Drive intégré (Leclerc, Auchan, Carrefour…), free to use, forte notoriété FR</span></div>
+      <div class="comp-row"><span class="comp-label">Failles</span><span class="comp-val red">Recettes limitées (~5000), pas d'IA générative, pas de livre PDF, gratuit = monétisation affiliés uniquement</span></div>
+      <div class="comp-row"><span class="comp-label">Modèle</span><span class="comp-val">Affiliation supermarchés (GRATUIT pour l'user). Pas d'abonnement.</span></div>
+      <div class="comp-row"><span class="comp-label">Leçon</span><span class="comp-val gold">La preuve que le drive intégré fonctionne en France. Notre différence = IA + premium</span></div>
+    </div>
+
+    <div class="comp-card">
+      <div class="comp-header">
+        <div class="comp-name">Mealime 🇺🇸</div>
+        <div class="comp-origin">Référence mondiale</div>
+      </div>
+      <div class="comp-tagline">"Plans rapides, liste organisée par rayon" — Pro à 3$/mois</div>
+      <div class="comp-row"><span class="comp-label">Forces</span><span class="comp-val green">UX minimaliste et intuitive, listes organisées par rayon, recettes &lt;30 min</span></div>
+      <div class="comp-row"><span class="comp-label">Failles</span><span class="comp-val red">Dîners uniquement, pas d'IA générative, pas de mémoire des goûts, pas disponible en français</span></div>
+      <div class="comp-row"><span class="comp-label">Modèle</span><span class="comp-val">Freemium → Pro 3$/mois. Intégration Instacart, Walmart.</span></div>
+      <div class="comp-row"><span class="comp-label">Leçon</span><span class="comp-val gold">La simplicité bat la richesse de features. Ne jamais complexifier l'onboarding.</span></div>
+    </div>
+
+    <div class="comp-card">
+      <div class="comp-header">
+        <div class="comp-name">PlateJoy 🇺🇸</div>
+        <div class="comp-origin">Premium · Personnalisation</div>
+      </div>
+      <div class="comp-tagline">"50 data points à l'onboarding, pantry tracker, Instacart" — 10$/mois</div>
+      <div class="comp-row"><span class="comp-label">Forces</span><span class="comp-val green">Hyper-personnalisation (50 critères), gestion du frigo/pantry, réduction du gaspi</span></div>
+      <div class="comp-row"><span class="comp-label">Failles</span><span class="comp-val red">Onboarding trop long → abandon, pas de version française, pas d'IA générative</span></div>
+      <div class="comp-row"><span class="comp-label">Modèle</span><span class="comp-val">Abonnement 10-12$/mois. Intégration Instacart/Amazon Fresh.</span></div>
+      <div class="comp-row"><span class="comp-label">Leçon</span><span class="comp-val gold">La personnalisation avancée a de la valeur mais ne doit pas bloquer l'entrée.</span></div>
+    </div>
+
+    <div class="comp-card">
+      <div class="comp-header">
+        <div class="comp-name">eMeals 🇺🇸</div>
+        <div class="comp-origin">Meilleure intégration grocery</div>
+      </div>
+      <div class="comp-tagline">"Dîner + panier en 1 clic" — partenariats Walmart, Kroger, Instacart</div>
+      <div class="comp-row"><span class="comp-label">Forces</span><span class="comp-val green">15 plans diets, menus hebdo curatés par diététiciens, intégration drive la plus fluide du marché</span></div>
+      <div class="comp-row"><span class="comp-label">Failles</span><span class="comp-val red">Pas d'IA, menus figés (peu de personnalisation), anglais uniquement</span></div>
+      <div class="comp-row"><span class="comp-label">Modèle</span><span class="comp-val">5-10$/mois selon plan. Meilleur benchmark pour l'expérience drive.</span></div>
+      <div class="comp-row"><span class="comp-label">Leçon</span><span class="comp-val gold">Le "1 clic → panier" est le feature le plus transformateur. C'est LE moment de vérité.</span></div>
+    </div>
+
+    <div class="comp-card">
+      <div class="comp-header">
+        <div class="comp-name">Paprika 🇺🇸</div>
+        <div class="comp-origin">Référence organisation</div>
+      </div>
+      <div class="comp-tagline">"Votre bibliothèque de recettes personnelle" — one-time purchase</div>
+      <div class="comp-row"><span class="comp-label">Forces</span><span class="comp-val green">Importation depuis n'importe quel site, offline, liste organisée par rayon, cross-device sync</span></div>
+      <div class="comp-row"><span class="comp-label">Failles</span><span class="comp-val red">Pas de suggestion IA, pas de drive, pas de planning auto, pas de version FR</span></div>
+      <div class="comp-row"><span class="comp-label">Modèle</span><span class="comp-val">One-time 4,99-29,99€. Fidélité extrême, pas de churn.</span></div>
+      <div class="comp-row"><span class="comp-label">Leçon</span><span class="comp-val gold">L'import de recettes depuis le web = feature très demandée à implémenter dès v1.</span></div>
+    </div>
+
+    <div class="comp-card">
+      <div class="comp-header">
+        <div class="comp-name">Petit Citron 🇫🇷</div>
+        <div class="comp-origin">Concurrent FR · Santé</div>
+      </div>
+      <div class="comp-tagline">"Menus équilibrés + courses en 5 min" — app française</div>
+      <div class="comp-row"><span class="comp-label">Forces</span><span class="comp-val green">Français natif, focus nutrition équilibrée, menus familiaux</span></div>
+      <div class="comp-row"><span class="comp-label">Failles</span><span class="comp-val red">Pas de drive intégré, peu de diversité culinaire, pas d'IA, UX datée</span></div>
+      <div class="comp-row"><span class="comp-label">Modèle</span><span class="comp-val">Freemium. Marché FR peu monétisé.</span></div>
+      <div class="comp-row"><span class="comp-label">Leçon</span><span class="comp-val gold">Le marché FR premium meal planning reste VIDE. Jow gratuit ne répond pas aux besoins avancés.</span></div>
+    </div>
+
+  </div>
+
+  <div class="gap-box">
+    <h4>🎯 Gaps du marché — où se positionner</h4>
+    <ul>
+      <li>Aucune app française ne combine : IA générative de recettes + drive intégré + livre PDF hebdomadaire + mémoire famille</li>
+      <li>Jow est gratuit (affiliation) → pas de premium expérience. Notre cible = utilisateurs prêts à payer 9,99€/mois pour la valeur</li>
+      <li>Aucun acteur ne propose de recettes mondiales (50 000+) avec filtres culturels précis (cuisine japonaise du quotidien, street food vietnamien, etc.)</li>
+      <li>Le "mode utiliser les restes" n'est implémenté sérieusement par aucun acteur français</li>
+      <li>La gestion "frigo actuel" (PlateJoy le fait en US) est absente en France</li>
+      <li>Yummly est mort (déc. 2024) → 20M d'utilisateurs sans app. Fenêtre d'opportunité ouverte</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════ 02 · DIFFÉRENCIANTS ═══════════ -->
+<div class="section">
+  <div class="section-head">
+    <span class="section-num">02</span>
+    <h2 class="section-title">Éléments <em>différenciants</em></h2>
+  </div>
+
+  <div class="diff-grid">
+
+    <div class="diff-card c1">
+      <span class="diff-icon">🌍</span>
+      <div class="diff-title">Base de recettes mondiale</div>
+      <div class="diff-desc">50 000+ recettes scrappées et structurées depuis Marmiton, Allrecipes, NYT Cooking, Serious Eats, bases API (Spoonacular, Edamam), et sources ethniques (japonais, mexicain, indien, libanais…). Vecteurs d'embedding pour recherche sémantique. Aucun concurrent FR n'a cette profondeur.</div>
+      <span class="diff-badge">Base vectorielle · Embedding LLM</span>
+    </div>
+
+    <div class="diff-card c2">
+      <span class="diff-icon">🧠</span>
+      <div class="diff-title">IA mémorielle des goûts</div>
+      <div class="diff-desc">Chaque retour utilisateur (note, skip, "on a adoré") entraîne le profil de goût famille. Après 4 semaines, l'IA connaît mieux les goûts que le couple lui-même. Profils individuels par membre du foyer. Modèle collaboratif filtrant.</div>
+      <span class="diff-badge">Collaborative filtering · Fine-tuning</span>
+    </div>
+
+    <div class="diff-card c3">
+      <span class="diff-icon">🛒</span>
+      <div class="diff-title">Drive FR natif</div>
+      <div class="diff-desc">Intégration directe Leclerc Drive, Auchan Drive, Intermarché Drive, Carrefour. Le panier se remplit en 1 clic depuis l'app. Substitution intelligente si produit indisponible. C'est le feature qui crée la rétention long terme — supérieure à tout autre.</div>
+      <span class="diff-badge">Affiliation + API partenaires</span>
+    </div>
+
+    <div class="diff-card c4">
+      <span class="diff-icon">📚</span>
+      <div class="diff-title">Livre de recettes hebdomadaire</div>
+      <div class="diff-desc">Chaque dimanche, génération automatique d'un PDF/print imprimable : les 5-7 recettes de la semaine, avec photos générées, liste de courses, infos nutritionnelles, niveau de difficulté. Objet "tangible" à forte valeur perçue. Aucun concurrent ne fait ça.</div>
+      <span class="diff-badge">PDF generation · Image AI</span>
+    </div>
+
+    <div class="diff-card c5">
+      <span class="diff-icon">🥦</span>
+      <div class="diff-title">Mode frigo & anti-gaspi</div>
+      <div class="diff-desc">Scan des produits du frigo (photo ou saisie). L'IA propose des recettes qui utilisent l'existant en priorité. "Restes du lundi" → recette du mardi. Réduction prouvée du gaspi alimentaire de 20-30%. Argument fort pour l'acquisition.</div>
+      <span class="diff-badge">OCR · Vision AI</span>
+    </div>
+
+    <div class="diff-card c6">
+      <span class="diff-icon">👨‍👩‍👧</span>
+      <div class="diff-title">Profils multi-membres</div>
+      <div class="diff-desc">Chaque membre du foyer a ses propres restrictions, goûts et modes (enfants capricieux, sportif, végétarien, allergie). La planification réconcilie les contraintes automatiquement. Le partage en temps réel de la liste de courses évite les doublons et les "j'ai déjà acheté ça".</div>
+      <span class="diff-badge">Multi-profil · Shared state</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════ 03 · BASE DE RECETTES ═══════════ -->
+<div class="section">
+  <div class="section-head">
+    <span class="section-num">03</span>
+    <h2 class="section-title">Stratégie base de <em>recettes</em></h2>
+  </div>
+
+  <div class="recipe-sources">
+    <div class="rsource">
+      <div class="rsource-name">Spoonacular API</div>
+      <div class="rsource-count">~380 000 recettes</div>
+      <div class="rsource-desc">API complète avec données nutritionnelles, tags, temps de préparation, substitutions. Payant mais structuré. Base de départ solide.</div>
+    </div>
+    <div class="rsource">
+      <div class="rsource-name">Edamam API</div>
+      <div class="rsource-count">~2M recettes</div>
+      <div class="rsource-desc">Forte couverture internationale, analyse nutritionnelle précise. Bon complémentaire pour les cuisines mondiales.</div>
+    </div>
+    <div class="rsource">
+      <div class="rsource-name">Marmiton Scraping</div>
+      <div class="rsource-count">~70 000 recettes FR</div>
+      <div class="rsource-desc">Recettes françaises authentiques, notes communautaires. Scraping légal via robots.txt. Base essentielle pour la pertinence culturelle FR.</div>
+    </div>
+    <div class="rsource">
+      <div class="rsource-name">Open Food Facts</div>
+      <div class="rsource-count">~3M produits</div>
+      <div class="rsource-desc">Base de données produits FR (EAN, Nutriscore, composition). Essentielle pour faire le lien recette → produit drive → panier.</div>
+    </div>
+    <div class="rsource">
+      <div class="rsource-name">Web Scraping ciblé</div>
+      <div class="rsource-count">~30 000 recettes</div>
+      <div class="rsource-desc">NYT Cooking, Serious Eats, 750g, Ricardo, Allrecipes. Recettes de qualité éditoriale pour enrichir la bibliothèque premium.</div>
+    </div>
+    <div class="rsource">
+      <div class="rsource-name">LLM Generation</div>
+      <div class="rsource-count">Illimité</div>
+      <div class="rsource-desc">Génération on-demand de recettes adaptées aux profils utilisateurs. Claude/GPT-4 pour créer des variations, adapter à des contraintes spécifiques, créer du contenu inédit.</div>
+    </div>
+  </div>
+
+  <div class="gap-box">
+    <h4>📐 Pipeline de traitement des recettes</h4>
+    <ul>
+      <li>Normalisation des données : ingrédients → format canonique (nom, quantité, unité, catégorie)</li>
+      <li>Embedding vectoriel (OpenAI text-embedding-3 ou sentence-transformers) pour recherche sémantique</li>
+      <li>Tagging automatique : temps, difficulté, cuisine, régime, saison, budget estimé</li>
+      <li>Mapping ingrédient → produit Open Food Facts → SKU drive enseigne</li>
+      <li>Détection des doublons inter-sources (similarité cosine &gt; 0.92)</li>
+      <li>Base vectorielle : Pinecone ou pgvector (PostgreSQL) pour les queries de similarité</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════ 04 · MATRICE PRIORITÉS ═══════════ -->
+<div class="section">
+  <div class="section-head">
+    <span class="section-num">04</span>
+    <h2 class="section-title">Matrice des <em>priorités</em></h2>
+  </div>
+
+  <div style="display:grid;grid-template-columns:2rem 1fr;gap:0.5rem;margin-bottom:0.5rem;align-items:center">
+    <div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;text-align:center">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:0.1em;color:var(--muted)">IMPACT FAIBLE</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:0.1em;color:var(--muted)">IMPACT FORT</div>
+    </div>
+  </div>
+
+  <div class="matrix">
+    <div class="quadrant">
+      <div class="q-label blue">EFFORT FAIBLE · IMPACT FAIBLE → Plus tard</div>
+      <div class="q-item">Mode sombre / thèmes</div>
+      <div class="q-item">Intégration Apple Watch</div>
+      <div class="q-item">Partage social recettes</div>
+      <div class="q-item">Badges gamification</div>
+    </div>
+    <div class="quadrant">
+      <div class="q-label green">EFFORT FAIBLE · IMPACT FORT → Faire en premier</div>
+      <div class="q-item">Génération liste de courses PDF</div>
+      <div class="q-item">Profils alimentaires (végé, sans gluten…)</div>
+      <div class="q-item">Rappel hebdo planning dimanche</div>
+      <div class="q-item">Recherche recette par ingrédient</div>
+      <div class="q-item">Taille des portions ajustable</div>
+    </div>
+    <div class="quadrant">
+      <div class="q-label red">EFFORT FORT · IMPACT FAIBLE → Éviter ou déléguer</div>
+      <div class="q-item">App native iOS/Android (v1)</div>
+      <div class="q-item">Recommandations nutritionnistes</div>
+      <div class="q-item">Intégration frigo connecté</div>
+      <div class="q-item">Vidéos recettes intégrées</div>
+    </div>
+    <div class="quadrant">
+      <div class="q-label gold">EFFORT FORT · IMPACT FORT → Planifier soigneusement</div>
+      <div class="q-item">Drive FR intégré (Leclerc, Auchan)</div>
+      <div class="q-item">IA mémorielle des goûts</div>
+      <div class="q-item">Mode frigo / anti-gaspi</div>
+      <div class="q-item">PDF livre recettes hebdo</div>
+      <div class="q-item">Base de recettes mondiale 50K+</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 05 · AGENTS IA ═══════════ -->
+<div class="section">
+  <div class="section-head">
+    <span class="section-num">05</span>
+    <h2 class="section-title">Architecture <em>agents IA</em></h2>
+  </div>
+
+  <div class="agents-grid">
+    <div class="agent-card">
+      <div class="agent-icon">🔍</div>
+      <div class="agent-name">Agent · RECIPE_SCOUT</div>
+      <div class="agent-role">Collecte & enrichissement de recettes</div>
+      <div class="agent-desc">Scrape les sources ciblées (Marmiton, 750g, web international), normalise les données, détecte les doublons via embedding, enrichit avec tags automatiques, valide la cohérence ingrédients/instructions. Tourne en batch nocturne.</div>
+    </div>
+    <div class="agent-card">
+      <div class="agent-icon">🧬</div>
+      <div class="agent-name">Agent · TASTE_PROFILE</div>
+      <div class="agent-role">Moteur de recommandation personnalisé</div>
+      <div class="agent-desc">Analyse les feedbacks (notes, skips, favoris), met à jour les vecteurs de préférence par profil, détecte les patterns familiaux, gère les contraintes contradictoires (enfant capricieux + parent veggie). Modèle collaboratif + content-based hybrid.</div>
+    </div>
+    <div class="agent-card">
+      <div class="agent-icon">📅</div>
+      <div class="agent-name">Agent · WEEKLY_PLANNER</div>
+      <div class="agent-role">Planificateur hebdomadaire intelligent</div>
+      <div class="agent-desc">Génère le plan de la semaine en tenant compte : profil goûts, régimes, temps de cuisine dispo, budget, saison, anti-répétition, réutilisation des restes, équilibre nutritionnel. Output : JSON plan + liste de courses consolidée.</div>
+    </div>
+    <div class="agent-card">
+      <div class="agent-icon">🛒</div>
+      <div class="agent-name">Agent · CART_BUILDER</div>
+      <div class="agent-role">Constructeur de panier drive</div>
+      <div class="agent-desc">Mappe chaque ingrédient vers le meilleur produit disponible dans l'enseigne choisie (via Open Food Facts + catalogue enseigne). Gère les substitutions si rupture, optimise les quantités (éviter le gaspillage), envoie le panier via API partenaire.</div>
+    </div>
+    <div class="agent-card">
+      <div class="agent-icon">📚</div>
+      <div class="agent-name">Agent · BOOK_GENERATOR</div>
+      <div class="agent-role">Générateur du livre PDF hebdomadaire</div>
+      <div class="agent-desc">Compile les 5-7 recettes de la semaine en PDF imprimable avec mise en page soignée, images (générées via Stability AI ou DALL-E), infos nutritionnelles, liste de courses et conseils de préparation. Génération automatique chaque dimanche soir.</div>
+    </div>
+    <div class="agent-card">
+      <div class="agent-icon">🔔</div>
+      <div class="agent-name">Agent · RETENTION_LOOP</div>
+      <div class="agent-role">Anti-churn & engagement</div>
+      <div class="agent-desc">Monitore les signaux de décrochage (inactivité 5j, baisse du taux d'ouverture), déclenche des actions proactives (notification push "nouveau plat selon tes goûts", email "ta semaine est prête"), gère les relances win-back. Règles + ML.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 06 · ROADMAP PHASES ═══════════ -->
+<div class="section">
+  <div class="section-head">
+    <span class="section-num">06</span>
+    <h2 class="section-title">Roadmap <em>de développement</em></h2>
+  </div>
+
+  <div class="phases">
+
+    <!-- V0 -->
+    <div class="phase">
+      <div class="phase-head">
+        <div class="phase-badge v0">v0 · Fondations</div>
+        <div class="phase-title-wrap">
+          <div class="phase-title">Scraping, base de données & moteur de recommandation</div>
+          <div class="phase-duration">Mois 1–3 · Travail invisible mais critique · Aucun utilisateur</div>
+        </div>
+        <div class="phase-kpi">
+          <span class="kpi-val">0</span>
+          <span class="kpi-lbl">Utilisateurs</span>
+        </div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-col">
+          <div class="phase-col-title"><span class="dot dot-green"></span>Devs à prioriser</div>
+          <ul class="task-list">
+            <li class="task-item priority">Pipeline de scraping Marmiton + 750g + Allrecipes</li>
+            <li class="task-item priority">Intégration Spoonacular + Edamam APIs</li>
+            <li class="task-item priority">Normalisation des données recettes (PostgreSQL + pgvector)</li>
+            <li class="task-item priority">Embedding vectoriel des recettes (sentence-transformers)</li>
+            <li class="task-item">Mapping ingrédients → Open Food Facts</li>
+            <li class="task-item">Pipeline de déduplication par similarité cosine</li>
+            <li class="task-item">Tagging automatique (temps, difficulté, cuisine, régime)</li>
+          </ul>
+        </div>
+        <div class="phase-col">
+          <div class="phase-col-title"><span class="dot dot-orange"></span>Agent IA actif</div>
+          <ul class="task-list">
+            <li class="task-item priority">RECIPE_SCOUT : scraping + normalisation batch</li>
+            <li class="task-item">Validation qualité recettes (LLM filter)</li>
+            <li class="task-item">Génération de recettes manquantes (LLM) pour cuisines sous-représentées</li>
+          </ul>
+        </div>
+        <div class="phase-col">
+          <div class="phase-col-title"><span class="dot dot-red"></span>Challenges</div>
+          <ul class="task-list">
+            <li class="task-item danger">Qualité des données scrappées très hétérogène</li>
+            <li class="task-item danger">Mapping ingrédient → produit imparfait (ex: "crème fraîche 30cl" ≠ n'importe quelle marque)</li>
+            <li class="task-item danger">Coûts API Spoonacular/Edamam à surveiller</li>
+            <li class="task-item">Volume : viser 50 000 recettes dédupliquées avant la v1</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- V1 -->
+    <div class="phase">
+      <div class="phase-head">
+        <div class="phase-badge v1">v1 · MVP</div>
+        <div class="phase-title-wrap">
+          <div class="phase-title">Planificateur hebdomadaire + liste de courses</div>
+          <div class="phase-duration">Mois 4–6 · Web app + mobile PWA · Lancement beta fermée</div>
+        </div>
+        <div class="phase-kpi">
+          <span class="kpi-val">50–200</span>
+          <span class="kpi-lbl">Beta users</span>
+        </div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-col">
+          <div class="phase-col-title"><span class="dot dot-green"></span>Devs à prioriser</div>
+          <ul class="task-list">
+            <li class="task-item priority">Onboarding : profil foyer (taille, régimes, allergies, temps de cuisine)</li>
+            <li class="task-item priority">Génération du plan 5 dîners/semaine (moteur WEEKLY_PLANNER)</li>
+            <li class="task-item priority">Liste de courses consolidée (groupée par rayon)</li>
+            <li class="task-item priority">Partage liste en temps réel (WebSocket ou Supabase Realtime)</li>
+            <li class="task-item">Fiches recettes complètes (instructions, photos, vidéo)</li>
+            <li class="task-item">Système de notation recettes (1–5 étoiles + commentaire)</li>
+            <li class="task-item">Import de recette depuis URL (parsing Paprika-style)</li>
+            <li class="task-item">Auth + gestion multi-profils famille</li>
+          </ul>
+        </div>
+        <div class="phase-col">
+          <div class="phase-col-title"><span class="dot dot-orange"></span>Agents IA actifs</div>
+          <ul class="task-list">
+            <li class="task-item priority">WEEKLY_PLANNER : génération plan hebdo</li>
+            <li class="task-item priority">TASTE_PROFILE : initialisation profil + premières recommandations</li>
+            <li class="task-item">RECIPE_SCOUT : continue à tourner en fond</li>
+          </ul>
+        </div>
+        <div class="phase-col">
+          <div class="phase-col-title"><span class="dot dot-red"></span>Challenges</div>
+          <ul class="task-list">
+            <li class="task-item danger">Churn post-J14 si les recettes proposées ne conviennent pas</li>
+            <li class="task-item danger">Qualité de l'onboarding : trop court = mauvaises reco ; trop long = abandon</li>
+            <li class="task-item danger">Partage liste temps réel : complexité technique à ne pas sous-estimer</li>
+            <li class="task-item">Meilleure pratique : onboarding en 3 étapes max, suggestions améliorées par feedback actif</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- V2 -->
+    <div class="phase">
+      <div class="phase-head">
+        <div class="phase-badge v2">v2 · Différenciation</div>
+        <div class="phase-title-wrap">
+          <div class="phase-title">PDF hebdomadaire + frigo + mémoire des goûts</div>
+          <div class="phase-duration">Mois 7–10 · Lancement public payant</div>
+        </div>
+        <div class="phase-kpi">
+          <span class="kpi-val">500–2K</span>
+          <span class="kpi-lbl">Utilisateurs payants</span>
+        </div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-col">
+          <div class="phase-col-title"><span class="dot dot-green"></span>Devs à prioriser</div>
+          <ul class="task-list">
+            <li class="task-item priority">Générateur PDF livre de recettes hebdomadaire (ReportLab / WeasyPrint)</li>
+            <li class="task-item priority">Gestion du "frigo actuel" : saisie manuelle + scan photo (Vision AI)</li>
+            <li class="task-item priority">Mode "utiliser les restes" : recette J+1 basée sur restes J</li>
+            <li class="task-item priority">Système de paiement (Stripe) + plans abonnement</li>
+            <li class="task-item">Filtres avancés : budget semaine, temps de préparation, niveau</li>
+            <li class="task-item">Notifications push hebdomadaires (dimanche soir)</li>
+            <li class="task-item">Mode "cuisine du monde" : explorer par région</li>
+          </ul>
+        </div>
+        <div class="phase-col">
+          <div class="phase-col-title"><span class="dot dot-orange"></span>Agents IA actifs</div>
+          <ul class="task-list">
+            <li class="task-item priority">BOOK_GENERATOR : PDF automatique chaque dimanche</li>
+            <li class="task-item priority">TASTE_PROFILE : modèle collaboratif maturé (4+ semaines de data)</li>
+            <li class="task-item priority">RETENTION_LOOP : activation anti-churn</li>
+            <li class="task-item">CART_BUILDER : version beta sans drive (liste structurée uniquement)</li>
+          </ul>
+        </div>
+        <div class="phase-col">
+          <div class="phase-col-title"><span class="dot dot-red"></span>Challenges</div>
+          <ul class="task-list">
+            <li class="task-item danger">Générer un PDF de qualité suffisante = travail de mise en page non négligeable</li>
+            <li class="task-item danger">Scan frigo : reconnaissance fiable des produits → coûts API Vision élevés</li>
+            <li class="task-item danger">Conversion freemium → payant : le moment de vérité commercial</li>
+            <li class="task-item">Benchmark churn : meal apps visent &lt;8%/mois. Objectif : &lt;5% grâce à la mémoire IA</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- V3 -->
+    <div class="phase">
+      <div class="phase-head">
+        <div class="phase-badge v3">v3 · Intégration Drive</div>
+        <div class="phase-title-wrap">
+          <div class="phase-title">Leclerc Drive + Auchan Drive + Intermarché</div>
+          <div class="phase-duration">Mois 11–14 · Feature rétention principale · Croissance accélérée</div>
+        </div>
+        <div class="phase-kpi">
+          <span class="kpi-val">5K–15K</span>
+          <span class="kpi-lbl">Utilisateurs payants</span>
+        </div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-col">
+          <div class="phase-col-title"><span class="dot dot-green"></span>Devs à prioriser</div>
+          <ul class="task-list">
+            <li class="task-item priority">Partenariat affiliation Leclerc Drive (contact commercial)</li>
+            <li class="task-item priority">Intégration API Auchan Drive (ou scraping panier si API indispo)</li>
+            <li class="task-item priority">CART_BUILDER v2 : mapping ingrédient → SKU + substitution auto</li>
+            <li class="task-item priority">Sélection de l'enseigne au profil utilisateur</li>
+            <li class="task-item">Optimisation du panier : mutualiser les ingrédients entre recettes</li>
+            <li class="task-item">Alerte prix produit (Nutri + prix comparatif)</li>
+            <li class="task-item">Intégration Intermarché + Carrefour</li>
+          </ul>
+        </div>
+        <div class="phase-col">
+          <div class="phase-col-title"><span class="dot dot-orange"></span>Agents IA actifs</div>
+          <ul class="task-list">
+            <li class="task-item priority">CART_BUILDER : version production avec vraie intégration drive</li>
+            <li class="task-item">WEEKLY_PLANNER v2 : tient compte des promos enseigne de la semaine</li>
+            <li class="task-item">Tous les agents précédents en production</li>
+          </ul>
+        </div>
+        <div class="phase-col">
+          <div class="phase-col-title"><span class="dot dot-red"></span>Challenges</div>
+          <ul class="task-list">
+            <li class="task-item danger">Le plus gros challenge technique du projet : les enseignes n'ont pas d'API publique stable</li>
+            <li class="task-item danger">Approche Jow : partenariat commercial direct (6-18 mois de négociation)</li>
+            <li class="task-item danger">Alternative : scraping panier (fragile, maintenabilité difficile)</li>
+            <li class="task-item">Stratégie recommandée : commencer par Leclerc (API la plus accessible), puis Auchan</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- V4 -->
+    <div class="phase">
+      <div class="phase-head">
+        <div class="phase-badge v4">v4 · Scale</div>
+        <div class="phase-title-wrap">
+          <div class="phase-title">App native + IA avancée + expansion internationale</div>
+          <div class="phase-duration">Mois 15–18 · App iOS/Android · Expansion FR puis BE/CH</div>
+        </div>
+        <div class="phase-kpi">
+          <span class="kpi-val">25K+</span>
+          <span class="kpi-lbl">Utilisateurs payants</span>
+        </div>
+      </div>
+      <div class="phase-body">
+        <div class="phase-col">
+          <div class="phase-col-title"><span class="dot dot-green"></span>Devs à prioriser</div>
+          <ul class="task-list">
+            <li class="task-item priority">App iOS (React Native ou Flutter)</li>
+            <li class="task-item priority">Mode vocal "qu'est-ce qu'on mange ce soir ?" (Whisper + TTS)</li>
+            <li class="task-item">Coach nutrition IA (objectif perte de poids, prise de muscle)</li>
+            <li class="task-item">Intégration wearables (Apple Health, Garmin)</li>
+            <li class="task-item">Expansion Belgique / Suisse (enseignes locales)</li>
+            <li class="task-item">API B2B (nutrition apps, mutuelles, employeurs)</li>
+          </ul>
+        </div>
+        <div class="phase-col">
+          <div class="phase-col-title"><span class="dot dot-orange"></span>Nouveaux agents</div>
+          <ul class="task-list">
+            <li class="task-item">Agent NUTRITION_COACH : suivi objectifs santé long terme</li>
+            <li class="task-item">Agent SEASONAL : adaptation automatique aux saisons et aux promos</li>
+            <li class="task-item">Agent SOCIAL : suggestions basées sur les tendances TikTok food</li>
+          </ul>
+        </div>
+        <div class="phase-col">
+          <div class="phase-col-title"><span class="dot dot-red"></span>Challenges</div>
+          <ul class="task-list">
+            <li class="task-item danger">App native = budget significatif (React Native recommandé pour solo dev)</li>
+            <li class="task-item danger">Le mode vocal crée une expérience mémorable mais complexe</li>
+            <li class="task-item">À ce stade : envisager une levée de fonds si 5K+ payants</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════ 07 · STACK TECHNIQUE ═══════════ -->
+<div class="section">
+  <div class="section-head">
+    <span class="section-num">07</span>
+    <h2 class="section-title">Stack <em>technique</em></h2>
+  </div>
+
+  <div class="stack-grid">
+    <div class="stack-card">
+      <div class="stack-layer">Backend</div>
+      <div class="stack-items">
+        <span class="stack-tag">Python 3.12</span>
+        <span class="stack-tag">FastAPI</span>
+        <span class="stack-tag">Celery</span>
+        <span class="stack-tag">Redis</span>
+      </div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-layer">Base de données</div>
+      <div class="stack-items">
+        <span class="stack-tag">PostgreSQL</span>
+        <span class="stack-tag">pgvector</span>
+        <span class="stack-tag">Supabase</span>
+        <span class="stack-tag">Redis Cache</span>
+      </div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-layer">IA & LLM</div>
+      <div class="stack-items">
+        <span class="stack-tag">Claude API</span>
+        <span class="stack-tag">LangGraph</span>
+        <span class="stack-tag">sentence-transformers</span>
+        <span class="stack-tag">Stability AI</span>
+      </div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-layer">Frontend</div>
+      <div class="stack-items">
+        <span class="stack-tag">Next.js 14</span>
+        <span class="stack-tag">TypeScript</span>
+        <span class="stack-tag">Tailwind</span>
+        <span class="stack-tag">PWA</span>
+      </div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-layer">Scraping & Data</div>
+      <div class="stack-items">
+        <span class="stack-tag">Scrapy</span>
+        <span class="stack-tag">Playwright</span>
+        <span class="stack-tag">Spoonacular API</span>
+        <span class="stack-tag">Open Food Facts</span>
+      </div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-layer">PDF Generation</div>
+      <div class="stack-items">
+        <span class="stack-tag">WeasyPrint</span>
+        <span class="stack-tag">Jinja2</span>
+        <span class="stack-tag">ReportLab</span>
+      </div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-layer">Infra & Deploy</div>
+      <div class="stack-items">
+        <span class="stack-tag">Railway / Render</span>
+        <span class="stack-tag">Cloudflare R2</span>
+        <span class="stack-tag">Sentry</span>
+        <span class="stack-tag">PostHog</span>
+      </div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-layer">Payments & Auth</div>
+      <div class="stack-items">
+        <span class="stack-tag">Stripe</span>
+        <span class="stack-tag">Supabase Auth</span>
+        <span class="stack-tag">NextAuth</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 08 · MONÉTISATION ═══════════ -->
+<div class="section">
+  <div class="section-head">
+    <span class="section-num">08</span>
+    <h2 class="section-title">Modèle de <em>monétisation</em></h2>
+  </div>
+
+  <div class="mono-grid">
+    <div class="mono-card">
+      <div class="mono-phase">v1 · Découverte</div>
+      <div class="mono-name">Starter</div>
+      <div class="mono-price">Gratuit</div>
+      <div class="mono-desc">Plan gratuit limité pour l'acquisition. Converti en payant après 2 semaines d'usage actif.</div>
+      <ul class="mono-features">
+        <li>3 recettes/semaine</li>
+        <li>Liste de courses basique</li>
+        <li>Sans partage famille</li>
+        <li>Sans PDF</li>
+        <li>Sans drive intégré</li>
+      </ul>
+    </div>
+    <div class="mono-card featured">
+      <div class="mono-phase">v2 · Principal</div>
+      <div class="mono-name">Famille</div>
+      <div class="mono-price">9,99€<span>/mois</span></div>
+      <div class="mono-desc">L'expérience complète. Le plan qui doit représenter 80% du CA.</div>
+      <ul class="mono-features">
+        <li>7 dîners/semaine générés par IA</li>
+        <li>Profils multi-membres illimités</li>
+        <li>Livre PDF hebdomadaire</li>
+        <li>Liste partagée temps réel</li>
+        <li>Mode frigo & anti-gaspi</li>
+        <li>Mémoire des goûts</li>
+        <li>Drive intégré (v3)</li>
+      </ul>
+    </div>
+    <div class="mono-card">
+      <div class="mono-phase">v4 · Premium</div>
+      <div class="mono-name">Coach</div>
+      <div class="mono-price">14,99€<span>/mois</span></div>
+      <div class="mono-desc">Pour les profils nutrition-focused avec objectifs de santé précis.</div>
+      <ul class="mono-features">
+        <li>Tout le plan Famille</li>
+        <li>Tracking macros / calories</li>
+        <li>Coach nutrition IA</li>
+        <li>Intégration Apple Health</li>
+        <li>Recommandations diététicien</li>
+        <li>Support prioritaire</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="gap-box" style="margin-top:1.25rem">
+    <h4>💡 Revenue secondaire : affiliation drive</h4>
+    <ul>
+      <li>Modèle Jow : commission 1-3% sur chaque panier commandé via l'app (= revenus non plafonnés)</li>
+      <li>Potentiel : à 5 000 utilisateurs actifs × 80€/panier/semaine × 2% = 400K€/an de revenus d'affiliation</li>
+      <li>Ce modèle secondaire peut financer l'app même avec un pricing premium bas</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════ 09 · CHALLENGES CRITIQUES ═══════════ -->
+<div class="section">
+  <div class="section-head">
+    <span class="section-num">09</span>
+    <h2 class="section-title">Challenges <em>critiques</em></h2>
+  </div>
+
+  <div class="challenge-list">
+    <div class="challenge">
+      <div class="challenge-num">01</div>
+      <div class="challenge-content">
+        <h4>Le churn après 4–6 semaines</h4>
+        <p>Les études montrent que les meal apps perdent 15–30% de leurs utilisateurs en mois 2 si les suggestions se répètent ou ne correspondent pas aux goûts réels. Solution : IA mémorielle active dès la semaine 1, relance proactive J+5 si inactivité, option "surprise me" pour briser la routine.</p>
+      </div>
+      <div class="challenge-level level-high">CRITIQUE</div>
+    </div>
+    <div class="challenge">
+      <div class="challenge-num">02</div>
+      <div class="challenge-content">
+        <h4>L'intégration drive : sans API publique officielle</h4>
+        <p>Leclerc, Auchan et Intermarché n'ont pas d'API partenaire accessible directement. Jow a mis 2 ans à négocier ses partenariats. Stratégie : commencer par le scraping de panier (fragile mais fonctionnel) + démarcher commercialement en parallèle dès les premiers utilisateurs pour crédibiliser la proposition.</p>
+      </div>
+      <div class="challenge-level level-high">CRITIQUE</div>
+    </div>
+    <div class="challenge">
+      <div class="challenge-num">03</div>
+      <div class="challenge-content">
+        <h4>La qualité et la diversité des recettes</h4>
+        <p>50 000 recettes de mauvaise qualité valent moins que 5 000 excellentes. Il faut un pipeline de validation rigoureux (LLM + humain pour les premières centaines), des photos attractives (génération IA ou partenariats), et une véritable diversité culinaire (pas que de la cuisine franco-française).</p>
+      </div>
+      <div class="challenge-level level-medium">IMPORTANT</div>
+    </div>
+    <div class="challenge">
+      <div class="challenge-num">04</div>
+      <div class="challenge-content">
+        <h4>L'onboarding : le moment le plus fragile</h4>
+        <p>Trop court → mauvaises recommandations → churn J+7. Trop long → abandon avant d'avoir vu la valeur. Benchmark Mealime : 3 questions, 60 secondes. PlateJoy : 50 questions, 5 minutes → trop long mais qualité supérieure. Trouver le bon équilibre, tester avec les 50 premiers beta users.</p>
+      </div>
+      <div class="challenge-level level-medium">IMPORTANT</div>
+    </div>
+    <div class="challenge">
+      <div class="challenge-num">05</div>
+      <div class="challenge-content">
+        <h4>Le mapping ingrédient → produit → panier</h4>
+        <p>"200g de lardons fumés" → quel produit exact chez Leclerc ? Quantité ajustée au format vendu ? Substitut si rupture ? Ce problème est sous-estimé mais c'est l'une des raisons pour lesquelles peu d'acteurs l'ont résolu proprement. Open Food Facts + base de données produits locale + validation manuelle initiale.</p>
+      </div>
+      <div class="challenge-level level-medium">IMPORTANT</div>
+    </div>
+    <div class="challenge">
+      <div class="challenge-num">06</div>
+      <div class="challenge-content">
+        <h4>Différenciation vs Jow sur le long terme</h4>
+        <p>Jow a 9M d'utilisateurs, 33M€ levés, et les mêmes partenariats drive. Le risque est de construire exactement le même produit en payant. La réponse : se différencier sur la qualité de l'IA (mémoire, diversité mondiale), le contenu premium (PDF, livre), et les profils famille avancés. Viser le segment "willing to pay" que Jow laisse intact.</p>
+      </div>
+      <div class="challenge-level level-medium">IMPORTANT</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 10 · KPI TIMELINE ═══════════ -->
+<div class="section">
+  <div class="section-head">
+    <span class="section-num">10</span>
+    <h2 class="section-title">Objectifs <em>KPI par phase</em></h2>
+  </div>
+
+  <div class="kpi-timeline">
+    <div class="kpi-col">
+      <div class="kpi-month">M1–M3 · Fondations</div>
+      <div class="kpi-item">
+        <div class="kpi-item-val">50K</div>
+        <div class="kpi-item-lbl">Recettes en base</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-item-val">0</div>
+        <div class="kpi-item-lbl">Utilisateurs</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-item-val">3</div>
+        <div class="kpi-item-lbl">Cuisines couvertes</div>
+      </div>
+    </div>
+    <div class="kpi-col">
+      <div class="kpi-month">M4–M6 · MVP Beta</div>
+      <div class="kpi-item">
+        <div class="kpi-item-val">200</div>
+        <div class="kpi-item-lbl">Beta users</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-item-val">&gt;40%</div>
+        <div class="kpi-item-lbl">Rétention J30</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-item-val">4.0★</div>
+        <div class="kpi-item-lbl">NPS minimal</div>
+      </div>
+    </div>
+    <div class="kpi-col">
+      <div class="kpi-month">M7–M10 · Payant</div>
+      <div class="kpi-item">
+        <div class="kpi-item-val">500</div>
+        <div class="kpi-item-lbl">Payants</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-item-val">5K€</div>
+        <div class="kpi-item-lbl">MRR</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-item-val">&lt;5%</div>
+        <div class="kpi-item-lbl">Churn mensuel</div>
+      </div>
+    </div>
+    <div class="kpi-col">
+      <div class="kpi-month">M11–M14 · Drive</div>
+      <div class="kpi-item">
+        <div class="kpi-item-val">5K</div>
+        <div class="kpi-item-lbl">Payants</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-item-val">50K€</div>
+        <div class="kpi-item-lbl">MRR</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-item-val">2</div>
+        <div class="kpi-item-lbl">Enseignes intégrées</div>
+      </div>
+    </div>
+    <div class="kpi-col">
+      <div class="kpi-month">M15–M18 · Scale</div>
+      <div class="kpi-item">
+        <div class="kpi-item-val">25K</div>
+        <div class="kpi-item-lbl">Payants</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-item-val">250K€</div>
+        <div class="kpi-item-lbl">MRR</div>
+      </div>
+      <div class="kpi-item">
+        <div class="kpi-item-val">3M€</div>
+        <div class="kpi-item-lbl">ARR run rate</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /wrapper -->
+
+<div class="footer-note">
+  <div class="footer-note-icon">💡</div>
+  <p><strong>Note stratégique clé :</strong> La leçon principale de Jow (33M€ levés, gratuit, affiliation) et de Yummly (mort en déc. 2024 malgré 20M d'utilisateurs) est que la valeur réelle est dans <strong>l'expérience premium payante</strong>, pas dans le volume gratuit. Viser un petit nombre d'utilisateurs très engagés qui paient 9,99€/mois vaut mieux que 1M de gratuits. <strong>La priorité absolue en v1 : ne pas lancer avant d'avoir les 50 premiers beta users satisfaits.</strong> Tout le reste découlera de ça.</p>
+</div>
+
+</body>
+</html>

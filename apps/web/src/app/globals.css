@@ -1,0 +1,293 @@
+/* globals.css — MealPlanner SaaS */
+/* Design premium food — palette warm cream, Noto Serif + Inter */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Custom Properties — tokens de couleur premium
+   Palette : terracotta #E2725B | surface #fff8f6 | on-surface #201a19 | outline #857370
+   ============================================================ */
+:root {
+  /* Primary — Terracotta */
+  --color-primary: #E2725B;
+  --color-primary-foreground: #ffffff;
+  --color-primary-50: hsl(14, 100%, 97%);
+  --color-primary-100: hsl(14, 90%, 93%);
+  --color-primary-200: hsl(14, 85%, 85%);
+  --color-primary-300: hsl(14, 80%, 75%);
+  --color-primary-400: hsl(14, 78%, 65%);
+  --color-primary-500: #E2725B;
+  --color-primary-600: hsl(14, 72%, 46%);
+  --color-primary-700: hsl(14, 70%, 37%);
+  --color-primary-800: hsl(14, 68%, 28%);
+  --color-primary-900: hsl(14, 65%, 18%);
+
+  /* Surface premium — fond warm cream (pas blanc pur) */
+  --color-surface: #fff8f6;
+  --color-on-surface: #201a19;
+  --color-outline: #857370;
+
+  /* Secondary — Olive / Sage */
+  --color-secondary-50: hsl(78, 50%, 97%);
+  --color-secondary-100: hsl(78, 45%, 90%);
+  --color-secondary-500: hsl(78, 35%, 42%);
+  --color-secondary-600: hsl(78, 34%, 34%);
+  --color-secondary-700: hsl(78, 33%, 27%);
+
+  /* Accent — Safran / Amber */
+  --color-accent-50: hsl(38, 100%, 97%);
+  --color-accent-400: hsl(38, 90%, 58%);
+  --color-accent-500: hsl(38, 90%, 52%);
+  --color-accent-700: hsl(38, 85%, 34%);
+
+  /* Neutrals warm (conservés pour compatibilité interne) */
+  --color-neutral-50: #fff8f6;
+  --color-neutral-100: hsl(38, 25%, 95%);
+  --color-neutral-200: #857370;
+  --color-neutral-300: hsl(38, 15%, 80%);
+  --color-neutral-400: hsl(38, 12%, 65%);
+  --color-neutral-500: hsl(38, 10%, 50%);
+  --color-neutral-600: hsl(38, 10%, 38%);
+  --color-neutral-700: hsl(38, 12%, 28%);
+  --color-neutral-800: hsl(38, 14%, 18%);
+  --color-neutral-900: #201a19;
+
+  /* Fond et surface sémantiques */
+  --background: #fff8f6;
+  --foreground: #201a19;
+  --surface: #fff8f6;
+  --border: #857370;
+
+  /* Scroll behavior */
+  scroll-behavior: smooth;
+  scroll-padding-top: 80px;
+}
+
+/* Dark mode — "Cuisine à la bougie" */
+.dark {
+  --color-neutral-50: hsl(28, 15%, 9%);
+  --color-neutral-100: hsl(28, 14%, 13%);
+  --color-neutral-200: hsl(28, 12%, 20%);
+  --color-neutral-900: hsl(38, 20%, 92%);
+  --color-primary-500: hsl(14, 68%, 62%);
+  --color-secondary-500: hsl(78, 32%, 52%);
+  --color-surface: hsl(28, 15%, 9%);
+  --color-on-surface: hsl(38, 20%, 92%);
+
+  --background: hsl(28, 15%, 9%);
+  --foreground: hsl(38, 20%, 92%);
+  --surface: hsl(28, 14%, 13%);
+  --border: hsl(28, 12%, 20%);
+}
+
+/* ============================================================
+   @layer base — Reset et styles fondamentaux
+   ============================================================ */
+@layer base {
+  html {
+    font-family: var(--font-inter), system-ui, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    height: 100%;
+  }
+
+  body {
+    /* Fond warm cream premium — pas blanc pur */
+    background-color: #fff8f6;
+    color: #201a19;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100%;
+    min-height: 100dvh;
+    font-family: var(--font-inter), system-ui, sans-serif;
+  }
+
+  /* Titres — Noto Serif (remplace Fraunces) */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-serif), Georgia, serif;
+    line-height: 1.2;
+    color: #201a19;
+  }
+
+  /* Focus visible — ring terracotta conforme WCAG 2.4.11 */
+  *:focus-visible {
+    outline: 2px solid #E2725B;
+    outline-offset: 2px;
+    border-radius: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  /* Liens — couleur terracotta */
+  a {
+    color: var(--color-primary-600);
+    text-decoration-skip-ink: auto;
+  }
+
+  a:hover {
+    color: var(--color-primary-700);
+  }
+
+  img,
+  video {
+    max-width: 100%;
+    height: auto;
+  }
+
+  hr {
+    border-color: #857370;
+    border-top-width: 1px;
+  }
+}
+
+/* ============================================================
+   @layer components — Utilitaires réutilisables
+   ============================================================ */
+@layer components {
+  /* App shell mobile — structure principale */
+  .app-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* Zone de contenu scrollable */
+  .app-content {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Safe areas iOS (PWA) */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Skeleton shimmer warm */
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(38, 25%, 95%) 25%,
+      hsl(38, 20%, 89%) 50%,
+      hsl(38, 25%, 95%) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer-warm 1.8s linear infinite;
+  }
+
+  /* Conteneur de contenu max-width centré */
+  .content-container {
+    max-width: 1400px;
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
+
+  @media (min-width: 768px) {
+    .content-container {
+      padding-inline: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .content-container {
+      padding-inline: 2.5rem;
+    }
+  }
+}
+
+/* ============================================================
+   Hide scrollbar — listes horizontales
+   ============================================================ */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ============================================================
+   Scrollbar personnalisée — warm (webkit) desktop seulement
+   ============================================================ */
+@media (min-width: 1024px) {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(38, 25%, 95%);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #857370;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #201a19;
+  }
+}
+
+/* ============================================================
+   Reduced motion — désactive les animations non essentielles
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .skeleton-shimmer {
+    animation: none;
+    background: hsl(38, 25%, 95%);
+  }
+}
+
+/* ============================================================
+   View Transitions — transitions de pages
+   ============================================================ */
+@keyframes card-zoom-in {
+  from {
+    transform: scale(0.85);
+    opacity: 0;
+    border-radius: 16px;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+    border-radius: 0;
+  }
+}
+
+@keyframes shimmer-warm {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+::view-transition-new(recipe-card) {
+  animation: card-zoom-in 400ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+::view-transition-old(recipe-card) {
+  animation: none;
+}

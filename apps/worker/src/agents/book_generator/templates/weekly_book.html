@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Livre de recettes — Semaine du {{ week_start }}</title>
+  <style>
+    /* ================================================================
+       RESET & BASE
+       Police serif Georgia pour WeasyPrint (pas de Google Fonts)
+       Palettes terracotta #C0674A / crème #FFF8F0 / brun foncé #3D2B1F
+    ================================================================ */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 11pt;
+      line-height: 1.55;
+      color: #3D2B1F;
+      background: #FFF8F0;
+    }
+
+    /* ================================================================
+       PAGE LAYOUT — marges imprimables WeasyPrint
+    ================================================================ */
+    @page {
+      size: A4;
+      margin: 2cm 2.2cm 2.5cm 2.2cm;
+
+      @bottom-right {
+        content: counter(page);
+        font-family: Georgia, serif;
+        font-size: 9pt;
+        color: #9C7B6E;
+      }
+    }
+
+    @page :first {
+      @bottom-right { content: ""; }
+    }
+
+    /* ================================================================
+       PAGE DE COUVERTURE
+    ================================================================ */
+    .cover-page {
+      page: cover;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 25cm;
+      text-align: center;
+      background-color: #FFF8F0;
+    }
+
+    @page cover {
+      margin: 0;
+      @bottom-right { content: ""; }
+    }
+
+    .cover-illustration {
+      width: 180px;
+      height: 180px;
+      background: linear-gradient(135deg, #C0674A 0%, #E8956D 50%, #F5C5A0 100%);
+      border-radius: 50%;
+      margin: 0 auto 2cm auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .cover-icon {
+      font-size: 72pt;
+      color: #FFF8F0;
+    }
+
+    .cover-tag {
+      font-family: Georgia, serif;
+      font-size: 10pt;
+      text-transform: uppercase;
+      letter-spacing: 0.3em;
+      color: #C0674A;
+      margin-bottom: 0.8cm;
+    }
+
+    .cover-title {
+      font-size: 28pt;
+      font-weight: bold;
+      color: #3D2B1F;
+      margin-bottom: 0.4cm;
+      line-height: 1.2;
+    }
+
+    .cover-subtitle {
+      font-size: 16pt;
+      color: #C0674A;
+      margin-bottom: 1.5cm;
+    }
+
+    .cover-household {
+      font-size: 13pt;
+      color: #9C7B6E;
+      font-style: italic;
+      border-top: 1px solid #E8C4B0;
+      border-bottom: 1px solid #E8C4B0;
+      padding: 0.4cm 1.5cm;
+    }
+
+    .cover-meta {
+      font-size: 9pt;
+      color: #9C7B6E;
+      margin-top: 1.5cm;
+    }
+
+    /* ================================================================
+       SOMMAIRE
+    ================================================================ */
+    .toc-page {
+      page-break-before: always;
+      padding-top: 1cm;
+    }
+
+    .section-title {
+      font-size: 18pt;
+      color: #C0674A;
+      border-bottom: 2px solid #C0674A;
+      padding-bottom: 0.3cm;
+      margin-bottom: 0.8cm;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .toc-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .toc-table tr {
+      border-bottom: 1px dotted #D4A898;
+    }
+
+    .toc-table td {
+      padding: 0.25cm 0;
+      vertical-align: middle;
+    }
+
+    .toc-num {
+      font-size: 10pt;
+      color: #C0674A;
+      width: 30px;
+      font-weight: bold;
+    }
+
+    .toc-recipe-name {
+      font-size: 11pt;
+      color: #3D2B1F;
+    }
+
+    .toc-day {
+      font-size: 9pt;
+      color: #9C7B6E;
+      font-style: italic;
+      width: 100px;
+    }
+
+    .toc-time {
+      font-size: 9pt;
+      color: #9C7B6E;
+      text-align: right;
+      width: 70px;
+    }
+
+    /* ================================================================
+       FICHES RECETTES
+    ================================================================ */
+    .recipe-page {
+      page-break-before: always;
+    }
+
+    .recipe-header {
+      background: linear-gradient(135deg, #C0674A 0%, #D4855E 100%);
+      color: #FFF8F0;
+      padding: 0.8cm;
+      margin-bottom: 0.6cm;
+      border-radius: 4px;
+    }
+
+    .recipe-day-badge {
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      opacity: 0.85;
+      margin-bottom: 0.2cm;
+    }
+
+    .recipe-title {
+      font-size: 20pt;
+      font-weight: bold;
+      line-height: 1.15;
+      margin-bottom: 0.3cm;
+    }
+
+    .recipe-meta-row {
+      display: flex;
+      gap: 1.5cm;
+    }
+
+    .recipe-meta-item {
+      font-size: 9pt;
+      opacity: 0.9;
+    }
+
+    .recipe-meta-item strong {
+      display: block;
+      font-size: 11pt;
+      opacity: 1;
+    }
+
+    .recipe-photo-placeholder {
+      width: 100%;
+      height: 6cm;
+      background: linear-gradient(135deg, #F5C5A0 0%, #E8956D 100%);
+      border-radius: 4px;
+      margin-bottom: 0.6cm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .recipe-photo-placeholder-text {
+      font-size: 9pt;
+      color: #FFF8F0;
+      font-style: italic;
+      opacity: 0.7;
+    }
+
+    .recipe-body {
+      display: flex;
+      gap: 0.8cm;
+    }
+
+    .recipe-col-left {
+      width: 38%;
+      flex-shrink: 0;
+    }
+
+    .recipe-col-right {
+      flex: 1;
+    }
+
+    .col-title {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #C0674A;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.3cm;
+      padding-bottom: 0.1cm;
+      border-bottom: 1px solid #E8C4B0;
+    }
+
+    /* Ingrédients */
+    .ingredient-list {
+      list-style: none;
+      margin: 0;
+    }
+
+    .ingredient-list li {
+      font-size: 10pt;
+      padding: 0.15cm 0;
+      border-bottom: 1px dotted #F0D8C8;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .ingredient-qty {
+      color: #C0674A;
+      font-weight: bold;
+      margin-left: 0.3cm;
+      white-space: nowrap;
+    }
+
+    /* Instructions */
+    .instructions-list {
+      list-style: none;
+      counter-reset: step-counter;
+    }
+
+    .instructions-list li {
+      counter-increment: step-counter;
+      padding: 0.2cm 0 0.2cm 0.8cm;
+      border-left: 3px solid #E8C4B0;
+      margin-bottom: 0.3cm;
+      font-size: 10pt;
+      position: relative;
+    }
+
+    .instructions-list li::before {
+      content: counter(step-counter);
+      position: absolute;
+      left: -0.6cm;
+      top: 0.1cm;
+      background: #C0674A;
+      color: #FFF8F0;
+      width: 0.5cm;
+      height: 0.5cm;
+      border-radius: 50%;
+      font-size: 8pt;
+      font-weight: bold;
+      text-align: center;
+      line-height: 0.5cm;
+    }
+
+    /* Infos nutritionnelles */
+    .nutrition-box {
+      background: #F9EDE5;
+      border-left: 3px solid #C0674A;
+      padding: 0.4cm;
+      margin-top: 0.5cm;
+      border-radius: 0 4px 4px 0;
+    }
+
+    .nutrition-box .col-title {
+      border-bottom: none;
+      margin-bottom: 0.2cm;
+    }
+
+    .nutrition-grid {
+      display: flex;
+      gap: 0.5cm;
+      flex-wrap: wrap;
+    }
+
+    .nutrition-item {
+      text-align: center;
+    }
+
+    .nutrition-value {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #C0674A;
+      display: block;
+    }
+
+    .nutrition-label {
+      font-size: 8pt;
+      color: #9C7B6E;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .tags-row {
+      margin-top: 0.4cm;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.2cm;
+    }
+
+    .tag-badge {
+      font-size: 8pt;
+      background: #E8C4B0;
+      color: #3D2B1F;
+      padding: 0.05cm 0.25cm;
+      border-radius: 10px;
+    }
+
+    /* ================================================================
+       LISTE DE COURSES (dernière page)
+    ================================================================ */
+    .shopping-page {
+      page-break-before: always;
+    }
+
+    .shopping-intro {
+      font-size: 10pt;
+      color: #9C7B6E;
+      font-style: italic;
+      margin-bottom: 0.6cm;
+    }
+
+    .aisle-section {
+      margin-bottom: 0.5cm;
+    }
+
+    .aisle-title {
+      font-size: 10pt;
+      font-weight: bold;
+      color: #FFF8F0;
+      background: #C0674A;
+      padding: 0.15cm 0.4cm;
+      border-radius: 3px;
+      margin-bottom: 0.25cm;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .shopping-items-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.15cm 0.6cm;
+    }
+
+    .shopping-item {
+      font-size: 10pt;
+      width: calc(50% - 0.3cm);
+      display: flex;
+      align-items: baseline;
+      gap: 0.2cm;
+    }
+
+    .shopping-check {
+      width: 0.4cm;
+      height: 0.4cm;
+      border: 1.5px solid #C0674A;
+      border-radius: 2px;
+      flex-shrink: 0;
+      display: inline-block;
+    }
+
+    .shopping-name {
+      flex: 1;
+      color: #3D2B1F;
+    }
+
+    .shopping-qty {
+      color: #C0674A;
+      font-size: 9pt;
+      white-space: nowrap;
+    }
+
+    /* ================================================================
+       UTILITAIRES
+    ================================================================ */
+    .page-divider {
+      border: none;
+      border-top: 1px solid #E8C4B0;
+      margin: 0.5cm 0;
+    }
+
+    .difficulty-stars {
+      color: #C0674A;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ================================================================
+     PAGE DE COUVERTURE
+================================================================ -->
+<div class="cover-page">
+  <div class="cover-illustration">
+    <span class="cover-icon">&#127859;</span>
+  </div>
+
+  <div class="cover-tag">Livre de recettes</div>
+
+  <h1 class="cover-title">Ma Semaine Gourmande</h1>
+
+  <div class="cover-subtitle">Semaine du {{ week_start }}</div>
+
+  <div class="cover-household">Foyer : {{ household_name }}</div>
+
+  <div class="cover-meta">
+    {{ recipe_count }} recette{% if recipe_count > 1 %}s{% endif %} &bull;
+    Généré le {{ generated_at[:10] }} &bull;
+    Presto
+  </div>
+</div>
+
+
+<!-- ================================================================
+     SOMMAIRE
+================================================================ -->
+<div class="toc-page">
+  <h2 class="section-title">Au menu cette semaine</h2>
+
+  <table class="toc-table">
+    <tbody>
+      {% for recipe in recipes %}
+      <tr>
+        <td class="toc-num">{{ loop.index }}</td>
+        <td class="toc-recipe-name">{{ recipe.title }}</td>
+        <td class="toc-day">
+          {% if recipe.day_of_week is not none %}
+            {{ day_labels.get(recipe.day_of_week, '') }}
+          {% endif %}
+        </td>
+        <td class="toc-time">
+          {% if recipe.total_time_min %}
+            {{ recipe.total_time_min }} min
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ================================================================
+     FICHES RECETTES
+================================================================ -->
+{% for recipe in recipes %}
+<div class="recipe-page">
+
+  <!-- En-tête coloré -->
+  <div class="recipe-header">
+    <div class="recipe-day-badge">
+      {% if recipe.day_of_week is not none %}
+        {{ day_labels.get(recipe.day_of_week, '') }}
+        {% if recipe.slot %} &bull; {{ recipe.slot }}{% endif %}
+      {% endif %}
+      &bull; Recette {{ loop.index }}/{{ recipe_count }}
+    </div>
+    <div class="recipe-title">{{ recipe.title }}</div>
+    <div class="recipe-meta-row">
+      {% if recipe.prep_time_min %}
+      <div class="recipe-meta-item">
+        <strong>{{ recipe.prep_time_min }} min</strong>
+        Préparation
+      </div>
+      {% endif %}
+      {% if recipe.cook_time_min %}
+      <div class="recipe-meta-item">
+        <strong>{{ recipe.cook_time_min }} min</strong>
+        Cuisson
+      </div>
+      {% endif %}
+      {% if recipe.total_time_min %}
+      <div class="recipe-meta-item">
+        <strong>{{ recipe.total_time_min }} min</strong>
+        Total
+      </div>
+      {% endif %}
+      {% if recipe.servings_adjusted %}
+      <div class="recipe-meta-item">
+        <strong>{{ recipe.servings_adjusted }}</strong>
+        Portions
+      </div>
+      {% elif recipe.servings %}
+      <div class="recipe-meta-item">
+        <strong>{{ recipe.servings }}</strong>
+        Portions
+      </div>
+      {% endif %}
+      {% if recipe.difficulty %}
+      <div class="recipe-meta-item">
+        <strong>{{ difficulty_labels.get(recipe.difficulty, recipe.difficulty) }}</strong>
+        Difficulté
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Photo placeholder (recette sans photo R2) -->
+  <div class="recipe-photo-placeholder">
+    <span class="recipe-photo-placeholder-text">
+      {% if recipe.cuisine_type %}{{ recipe.cuisine_type | capitalize }}{% else %}Photo à venir{% endif %}
+    </span>
+  </div>
+
+  <!-- Corps : ingrédients (gauche) + instructions (droite) -->
+  <div class="recipe-body">
+
+    <!-- Colonne gauche : ingrédients -->
+    <div class="recipe-col-left">
+      <div class="col-title">Ingrédients</div>
+      <ul class="ingredient-list">
+        {% for ing in recipe.ingredients %}
+        <li>
+          <span>{{ ing.canonical_name }}</span>
+          <span class="ingredient-qty">
+            {% if ing.quantity %}{{ ing.quantity | round(1) }}{% endif %}
+            {% if ing.unit %} {{ ing.unit }}{% endif %}
+          </span>
+        </li>
+        {% else %}
+        <li><em>Ingrédients non renseignés</em></li>
+        {% endfor %}
+      </ul>
+
+      <!-- Tags de la recette -->
+      {% if recipe.tags %}
+      <div class="tags-row">
+        {% for tag in recipe.tags[:6] %}
+        <span class="tag-badge">{{ tag }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Infos nutritionnelles (placeholder — données à enrichir Phase 3) -->
+      <div class="nutrition-box">
+        <div class="col-title">Valeurs nutritives</div>
+        <div class="nutrition-grid">
+          <div class="nutrition-item">
+            <span class="nutrition-value">—</span>
+            <span class="nutrition-label">Kcal</span>
+          </div>
+          <div class="nutrition-item">
+            <span class="nutrition-value">—</span>
+            <span class="nutrition-label">Protéines</span>
+          </div>
+          <div class="nutrition-item">
+            <span class="nutrition-value">—</span>
+            <span class="nutrition-label">Glucides</span>
+          </div>
+          <div class="nutrition-item">
+            <span class="nutrition-value">—</span>
+            <span class="nutrition-label">Lipides</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Colonne droite : instructions -->
+    <div class="recipe-col-right">
+      <div class="col-title">Préparation</div>
+      <ol class="instructions-list">
+        {% if recipe.instructions %}
+          {% for step in recipe.instructions %}
+          <li>
+            {% if step is mapping %}
+              {{ step.get('text', step.get('description', step | string)) }}
+            {% else %}
+              {{ step }}
+            {% endif %}
+          </li>
+          {% endfor %}
+        {% else %}
+        <li>Instructions disponibles sur Presto.</li>
+        {% endif %}
+      </ol>
+    </div>
+
+  </div><!-- /.recipe-body -->
+</div><!-- /.recipe-page -->
+{% endfor %}
+
+
+<!-- ================================================================
+     LISTE DE COURSES CONSOLIDÉE (dernière page)
+================================================================ -->
+<div class="shopping-page">
+  <h2 class="section-title">Liste de courses</h2>
+  <p class="shopping-intro">
+    Liste consolidée pour la semaine du {{ week_start }}.
+    {{ recipe_count }} recette{% if recipe_count > 1 %}s{% endif %} — pensez à vérifier votre stock avant de partir !
+  </p>
+
+  {% set current_aisle = namespace(name='') %}
+  {% for item in shopping_list %}
+
+    {% if item.aisle != current_aisle.name %}
+      {% if current_aisle.name != '' %}</div></div>{% endif %}
+      {% set current_aisle.name = item.aisle %}
+      <div class="aisle-section">
+        <div class="aisle-title">{{ item.aisle }}</div>
+        <div class="shopping-items-grid">
+    {% endif %}
+
+    <div class="shopping-item">
+      <span class="shopping-check"></span>
+      <span class="shopping-name">{{ item.ingredient }}</span>
+      <span class="shopping-qty">
+        {% if item.quantity and item.quantity > 0 %}
+          {{ item.quantity | round(1) }}
+          {% if item.unit %} {{ item.unit }}{% endif %}
+        {% endif %}
+      </span>
+    </div>
+
+  {% else %}
+  <p><em>La liste de courses sera disponible après la génération du plan.</em></p>
+  {% endfor %}
+
+  {% if shopping_list %}
+    </div><!-- /.shopping-items-grid -->
+  </div><!-- /.aisle-section -->
+  {% endif %}
+
+</div><!-- /.shopping-page -->
+
+</body>
+</html>

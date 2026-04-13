@@ -1,0 +1,195 @@
+{
+  "common": {
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "retry": "Réessayer",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "back": "Retour",
+    "next": "Suivant",
+    "skip": "Passer",
+    "close": "Fermer",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "yes": "Oui",
+    "no": "Non",
+    "or": "ou"
+  },
+  "navigation": {
+    "home": "Accueil",
+    "planning": "Planning",
+    "shopping": "Courses",
+    "profile": "Profil",
+    "settings": "Paramètres",
+    "logout": "Se déconnecter",
+    "mainNav": "Navigation principale",
+    "sidebarNav": "Navigation latérale"
+  },
+  "auth": {
+    "login": "Se connecter",
+    "signup": "Créer un compte",
+    "logout": "Se déconnecter",
+    "email": "Adresse e-mail",
+    "password": "Mot de passe",
+    "forgotPassword": "Mot de passe oublié ?",
+    "magicLink": "Connexion sans mot de passe",
+    "continueWithGoogle": "Continuer avec Google",
+    "alreadyHaveAccount": "Déjà un compte ?",
+    "noAccount": "Pas encore de compte ?",
+    "sessionExpired": "Session expirée",
+    "sessionExpiredDescription": "Veuillez vous reconnecter."
+  },
+  "onboarding": {
+    "title": "Bienvenue sur Presto",
+    "subtitle": "3 questions pour personnaliser votre expérience",
+    "step": "Étape {current} sur {total}",
+    "step1": {
+      "title": "Votre famille",
+      "question": "Combien de personnes dînent chez vous ?",
+      "adults": "Adultes",
+      "adultsDescription": "18 ans et plus",
+      "children": "Enfants",
+      "childrenDescription": "Moins de 18 ans",
+      "childrenAges": "Quelles tranches d'âge ?",
+      "ageGroups": {
+        "under3": "< 3 ans",
+        "3to6": "3–6 ans",
+        "7to12": "7–12 ans",
+        "13plus": "13 ans+"
+      }
+    },
+    "step2": {
+      "title": "Ce que vous ne mangez pas",
+      "question": "Y a-t-il des restrictions alimentaires dans votre famille ?",
+      "noRestriction": "Pas de restriction",
+      "noRestrictionDescription": "Tout le monde mange de tout",
+      "addCustom": "+ Ajouter une restriction personnalisée",
+      "restrictions": {
+        "vegetarian": "Végétarien",
+        "vegan": "Végétalien",
+        "glutenFree": "Sans gluten",
+        "noPork": "Sans porc",
+        "noSeafood": "Sans fruits de mer",
+        "nutAllergy": "Allergie aux noix",
+        "lactoseFree": "Sans lactose",
+        "halal": "Halal"
+      }
+    },
+    "step3": {
+      "title": "Votre contexte",
+      "cookingTimeQuestion": "En semaine, combien de temps avez-vous pour cuisiner le soir ?",
+      "cookingTimes": {
+        "under20": "< 20 min",
+        "20to40": "20–40 min",
+        "over40": "+ 40 min",
+        "under20Label": "Rapide",
+        "20to40Label": "Normal",
+        "over40Label": "Je prends mon temps"
+      },
+      "driveQuestion": "Quel drive utilisez-vous ?",
+      "driveOptional": "(optionnel)",
+      "drives": {
+        "leclerc": "Leclerc Drive",
+        "auchan": "Auchan Drive",
+        "carrefour": "Carrefour Drive",
+        "intermarche": "Intermarché Drive",
+        "other": "Autre enseigne",
+        "none": "Je ne commande pas en drive"
+      },
+      "generatePlan": "Générer mon premier plan",
+      "preferencesEditable": "Vous pourrez modifier ces préférences à tout moment"
+    },
+    "maybeLater": "Peut-être plus tard"
+  },
+  "dashboard": {
+    "title": "Ma semaine",
+    "weekOf": "Semaine du {date}",
+    "previousWeek": "Semaine précédente",
+    "nextWeek": "Semaine suivante",
+    "emptySlot": {
+      "title": "Votre semaine vous attend",
+      "description": "Laissez Presto générer votre plan de 5 à 7 dîners en quelques secondes.",
+      "cta": "Générer mon planning"
+    },
+    "addMeal": "Ajouter un repas",
+    "generateShopping": "Générer mes courses",
+    "regenerateWeek": "Régénérer la semaine",
+    "days": {
+      "monday": "Lundi",
+      "tuesday": "Mardi",
+      "wednesday": "Mercredi",
+      "thursday": "Jeudi",
+      "friday": "Vendredi",
+      "saturday": "Samedi",
+      "sunday": "Dimanche"
+    }
+  },
+  "recipes": {
+    "noResults": "Aucune recette trouvée",
+    "noResultsDescription": "Essayez de modifier vos filtres ou de chercher autre chose.",
+    "clearFilters": "Effacer les filtres",
+    "addToPlanning": "Ajouter au planning",
+    "viewRecipe": "Voir la recette",
+    "favorite": "Mettre en favoris",
+    "unfavorite": "Retirer des favoris",
+    "share": "Partager",
+    "difficulty": {
+      "easy": "Facile",
+      "medium": "Intermédiaire",
+      "hard": "Chef"
+    },
+    "prepTime": "{minutes} min",
+    "servings": "{count} portion | {count} portions",
+    "rating": {
+      "1": "Pas terrible",
+      "2": "Moyen",
+      "3": "Bien",
+      "4": "Très bien",
+      "5": "On a adoré !"
+    }
+  },
+  "shopping": {
+    "title": "Ma liste de courses",
+    "progress": "{checked} / {total} cochés",
+    "sendToDrive": "Envoyer au drive",
+    "markAllChecked": "Tout cocher",
+    "clearChecked": "Effacer les cochés",
+    "inStock": "En stock",
+    "sections": {
+      "vegetables": "Légumes & Fruits",
+      "meat": "Viandes & Poissons",
+      "dairy": "Produits laitiers",
+      "grains": "Féculents & Céréales",
+      "condiments": "Épicerie",
+      "other": "Divers"
+    }
+  },
+  "errors": {
+    "notFound": "Page introuvable",
+    "notFoundDescription": "Cette page n'existe pas ou a été déplacée.",
+    "serverError": "Erreur serveur",
+    "serverErrorDescription": "Une erreur inattendue s'est produite. Veuillez réessayer.",
+    "networkError": "Problème de connexion",
+    "networkErrorDescription": "Vérifiez votre connexion internet et réessayez.",
+    "rateLimited": "Trop de requêtes",
+    "rateLimitedDescription": "Veuillez patienter quelques secondes avant de réessayer.",
+    "unauthorized": "Accès non autorisé",
+    "unauthorizedDescription": "Vous devez être connecté pour accéder à cette page.",
+    "forbidden": "Accès refusé",
+    "forbiddenDescription": "Vous n'avez pas les droits pour cette action."
+  },
+  "notifications": {
+    "addedToPlanning": "Ajouté au planning !",
+    "removedFromPlanning": "Retiré du planning",
+    "planGenerated": "Votre planning est prêt !",
+    "pdfReady": "Votre livre de la semaine est prêt !",
+    "pdfReadyDescription": "Ouvrez-le pour voir vos recettes de la semaine.",
+    "viewBook": "Voir mon livre",
+    "cartSent": "Panier envoyé au drive !",
+    "cartSentDescription": "Votre panier {provider} est prêt à être validé.",
+    "saved": "Enregistré",
+    "deleted": "Supprimé"
+  }
+}

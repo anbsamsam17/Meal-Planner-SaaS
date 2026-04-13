@@ -1,0 +1,214 @@
+# =============================================================================
+# .gitignore — MealPlanner SaaS
+# Couvre Python, Node.js, IDE, environnements et artefacts de build
+# =============================================================================
+
+# =============================================================================
+# PYTHON
+# =============================================================================
+
+# Bytecode Python compilé
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+ENV/
+
+# uv — gestionnaire de paquets Python
+.uv/
+# Le lock file uv.lock est COMMITÉ (builds reproductibles)
+# !uv.lock  ← déjà inclus par défaut (pas d'exclusion nécessaire)
+
+# Caches outils Python
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.dmypy.json
+dmypy.json
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+
+# Distribution / packaging Python
+dist/
+build/
+*.egg-info/
+*.egg
+MANIFEST
+wheels/
+*.whl
+
+# Profiling
+*.prof
+
+# =============================================================================
+# NODE.JS / NEXT.JS
+# =============================================================================
+
+# Dépendances JavaScript
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js — artefacts de build
+.next/
+out/
+
+# Turborepo (sera ajouté en Phase 3)
+.turbo/
+
+# Build generiques JS
+dist/
+build/
+
+# Cache pnpm
+.pnpm-store/
+.pnpm-debug.log*
+
+# =============================================================================
+# VARIABLES D'ENVIRONNEMENT — JAMAIS COMMITER LES SECRETS
+# =============================================================================
+
+# Fichiers d'env locaux avec vraies valeurs
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Garder .env.example (template sans secrets — commité intentionnellement)
+!.env.example
+
+# =============================================================================
+# LOGS
+# =============================================================================
+
+*.log
+*.log.*
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# =============================================================================
+# SYSTÈME D'EXPLOITATION
+# =============================================================================
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+
+# =============================================================================
+# IDE ET ÉDITEURS
+# =============================================================================
+
+# VS Code — exclure les préférences personnelles, garder les settings partagés
+.vscode/
+# Partager uniquement les settings d'équipe (formatter, extensions recommandées)
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+
+# JetBrains (PyCharm, WebStorm, etc.)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim / Neovim
+*.swp
+*.swo
+*~
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+
+# =============================================================================
+# DOCKER
+# =============================================================================
+
+# Fichiers Docker locaux non versionnés (overrides locaux)
+docker-compose.override.yml
+
+# =============================================================================
+# SUPABASE
+# =============================================================================
+
+# Branches locales Supabase et fichiers temporaires
+supabase/.branches/
+supabase/.temp/
+
+# =============================================================================
+# TESTS ET QUALITÉ
+# =============================================================================
+
+# Rapports de test
+test-results/
+playwright-report/
+*.xml
+!.github/**/*.xml
+
+# =============================================================================
+# CERTIFICATS ET SECRETS
+# =============================================================================
+
+# Certificats locaux (mkcert, etc.)
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Fichiers de secrets
+secrets/
+.secrets/
+
+# =============================================================================
+# DIVERS
+# =============================================================================
+
+# Fichiers temporaires
+tmp/
+temp/
+.tmp/
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Fichiers de sauvegarde éditeur
+*.bak
+*.orig
+*.backup

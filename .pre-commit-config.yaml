@@ -1,0 +1,96 @@
+# .pre-commit-config.yaml — Hooks de pré-commit MealPlanner SaaS
+#
+# Installation :
+#   uv run pre-commit install
+#
+# Exécution manuelle sur tous les fichiers :
+#   uv run pre-commit run --all-files
+#
+# Mise à jour des hooks vers les dernières versions :
+#   uv run pre-commit autoupdate
+#
+# Documentation : https://pre-commit.com/
+
+repos:
+
+  # ===========================================================================
+  # Hooks généraux — vérifications basiques sur tous les fichiers
+  # ===========================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      # Supprime les espaces en fin de ligne
+      - id: trailing-whitespace
+        exclude: ".*\\.md$"   # Les Markdown peuvent avoir des espaces intentionnels
+      # Vérifie que les fichiers se terminent par une nouvelle ligne
+      - id: end-of-file-fixer
+      # Vérifie la syntaxe YAML (docker-compose, GitHub Actions, etc.)
+      - id: check-yaml
+        args: ["--allow-multiple-documents"]
+      # Vérifie la syntaxe TOML (pyproject.toml)
+      - id: check-toml
+      # Vérifie la syntaxe JSON (package.json, tsconfig.json, etc.)
+      - id: check-json
+      # Bloque les commits de fichiers volumineux (> 500 KB)
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      # Détecte les clés privées accidentellement committées
+      - id: detect-private-key
+      # Vérifie les conflits de merge non résolus
+      - id: check-merge-conflict
+      # Vérifie que les fichiers exécutables ont le bon shebang
+      - id: check-executables-have-shebangs
+
+  # ===========================================================================
+  # Ruff — Linter + Formatter Python
+  # Remplace : flake8, isort, autoflake, pyupgrade, black
+  # ===========================================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.10
+    hooks:
+      # Lint Python : détecte les erreurs et les mauvaises pratiques
+      - id: ruff
+        args: ["--fix"]   # Corrige automatiquement ce qui peut l'être
+        types_or: [python, pyi]
+      # Format Python : formate le code selon les règles ruff
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  # ===========================================================================
+  # Prettier — Formatter JavaScript/TypeScript/CSS/JSON/YAML/Markdown
+  # ===========================================================================
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        types_or: [javascript, jsx, ts, tsx, css, json, yaml, markdown]
+        # Exclure les fichiers auto-générés et les fichiers de config Python
+        exclude: |
+          (?x)^(
+            apps/api/alembic/.*|
+            packages/shared-types/src/index\.ts|
+            pnpm-lock\.yaml
+          )$
+
+  # ===========================================================================
+  # Gitleaks — Détection de secrets hardcodés dans le code
+  # Bloque le commit si des clés API, tokens, mots de passe sont détectés.
+  # Règle ROADMAP absolue : aucun secret ne doit être dans le repo.
+  # ===========================================================================
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  # ===========================================================================
+  # Mypy — Vérification des types Python (optionnel en pre-commit, lent)
+  # Commenté par défaut — décommentez si vous voulez la vérification à chaque commit.
+  # Préférable de l'exécuter dans la CI pour ne pas ralentir le flux de travail.
+  # ===========================================================================
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.10.0
+  #   hooks:
+  #     - id: mypy
+  #       additional_dependencies: ["pydantic>=2.0", "sqlalchemy>=2.0"]
+  #       args: ["--ignore-missing-imports"]
+  #       files: "^apps/(api|worker)/src/"

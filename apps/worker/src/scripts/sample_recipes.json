@@ -1,0 +1,298 @@
+[
+  {
+    "title": "Poulet basquaise",
+    "ingredients": [
+      "1 poulet découpé (1.5 kg)",
+      "3 poivrons (rouge, vert, jaune)",
+      "4 tomates mûres",
+      "2 oignons",
+      "3 gousses d'ail",
+      "200 g de jambon de Bayonne",
+      "1 boîte de tomates concassées (400 g)",
+      "10 cl de vin blanc sec",
+      "1 bouquet garni (thym, laurier, persil)",
+      "Piment d'Espelette",
+      "Huile d'olive, sel, poivre"
+    ],
+    "instructions": [
+      "Faire revenir les morceaux de poulet dorés dans l'huile d'olive. Réserver.",
+      "Dans la même cocotte, faire revenir les oignons émincés et l'ail.",
+      "Ajouter les poivrons en lanières et le jambon en dés.",
+      "Déglacer au vin blanc, ajouter les tomates concassées et fraîches.",
+      "Remettre le poulet, ajouter le bouquet garni et le piment d'Espelette.",
+      "Couvrir et laisser mijoter 45 minutes à feu doux.",
+      "Rectifier l'assaisonnement avant de servir."
+    ],
+    "prep_time_min": 20,
+    "cook_time_min": 50,
+    "servings": 4,
+    "cuisine_type": "française",
+    "tags": ["volaille", "mijotés", "basque", "tomates", "sans-gluten"],
+    "difficulty": 3
+  },
+  {
+    "title": "Gratin dauphinois",
+    "ingredients": [
+      "1.2 kg de pommes de terre (type Charlotte)",
+      "50 cl de crème liquide entière",
+      "20 cl de lait entier",
+      "2 gousses d'ail",
+      "50 g de beurre",
+      "Noix de muscade",
+      "Sel, poivre"
+    ],
+    "instructions": [
+      "Préchauffer le four à 180°C. Frotter un plat à gratin avec l'ail et beurrer.",
+      "Éplucher et trancher finement les pommes de terre (2-3 mm).",
+      "Mélanger crème, lait, sel, poivre et noix de muscade râpée.",
+      "Disposer les tranches de pommes de terre en couches dans le plat.",
+      "Verser le mélange crème-lait sur les pommes de terre.",
+      "Parsemer de beurre en noisettes. Enfourner 60-75 minutes.",
+      "Le gratin est cuit quand la lame d'un couteau s'enfonce sans résistance."
+    ],
+    "prep_time_min": 20,
+    "cook_time_min": 75,
+    "servings": 6,
+    "cuisine_type": "française",
+    "tags": ["pommes-de-terre", "gratin", "dauphinois", "végétarien", "accompagnement"],
+    "difficulty": 2
+  },
+  {
+    "title": "Ratatouille provençale",
+    "ingredients": [
+      "2 courgettes",
+      "1 aubergine",
+      "3 poivrons (rouge, jaune, vert)",
+      "4 tomates mûres",
+      "2 oignons",
+      "4 gousses d'ail",
+      "4 cs d'huile d'olive",
+      "1 bouquet garni (thym, romarin, laurier, basilic)",
+      "Sel, poivre"
+    ],
+    "instructions": [
+      "Couper tous les légumes en dés de 2 cm environ.",
+      "Faire sauter les aubergines séparément dans l'huile d'olive. Réserver.",
+      "Dans la même poêle, faire sauter les courgettes. Réserver.",
+      "Faire revenir les oignons et l'ail, puis les poivrons.",
+      "Ajouter les tomates en dés, le bouquet garni, sel et poivre.",
+      "Incorporer tous les légumes réservés.",
+      "Cuire à feu doux 30 minutes en mélangeant régulièrement.",
+      "Rectifier l'assaisonnement. Se sert chaud ou froid."
+    ],
+    "prep_time_min": 30,
+    "cook_time_min": 45,
+    "servings": 6,
+    "cuisine_type": "française",
+    "tags": ["légumes", "végétarien", "vegan", "provençal", "été", "sans-gluten"],
+    "difficulty": 2
+  },
+  {
+    "title": "Quiche lorraine",
+    "ingredients": [
+      "1 pâte brisée (230 g)",
+      "200 g de lardons fumés",
+      "3 œufs",
+      "20 cl de crème fraîche épaisse",
+      "20 cl de lait",
+      "100 g de gruyère râpé",
+      "Noix de muscade",
+      "Sel, poivre"
+    ],
+    "instructions": [
+      "Préchauffer le four à 200°C. Foncer un moule avec la pâte brisée. Piquer le fond.",
+      "Faire revenir les lardons à sec jusqu'à légère coloration. Égoutter.",
+      "Battre les œufs avec la crème et le lait. Assaisonner.",
+      "Ajouter une pointe de muscade et la moitié du gruyère.",
+      "Répartir les lardons sur le fond de tarte.",
+      "Verser l'appareil à quiche. Parsemer du reste de gruyère.",
+      "Cuire 30-35 minutes jusqu'à dorure et prise complète."
+    ],
+    "prep_time_min": 15,
+    "cook_time_min": 35,
+    "servings": 6,
+    "cuisine_type": "française",
+    "tags": ["tarte", "lorraine", "lardons", "crème", "fromage", "classique"],
+    "difficulty": 2
+  },
+  {
+    "title": "Bœuf bourguignon",
+    "ingredients": [
+      "1.5 kg de bœuf à braiser (paleron ou joue)",
+      "75 cl de vin rouge de Bourgogne",
+      "200 g de lardons",
+      "250 g de champignons de Paris",
+      "20 petits oignons grelots",
+      "3 carottes",
+      "2 gousses d'ail",
+      "2 cs de farine",
+      "1 bouquet garni",
+      "3 cs d'huile",
+      "Sel, poivre"
+    ],
+    "instructions": [
+      "Couper le bœuf en cubes de 4 cm. Faire mariner dans le vin rouge 12h avec les légumes.",
+      "Égoutter la viande et les légumes. Conserver la marinade.",
+      "Faire dorer la viande en plusieurs fois dans l'huile chaude. Réserver.",
+      "Faire revenir les lardons, les oignons et les carottes.",
+      "Singer (saupoudrer de farine), mélanger et verser la marinade.",
+      "Remettre la viande, ajouter le bouquet garni et l'ail.",
+      "Cuire à feu très doux 2h30 à couvert en mijotant.",
+      "Ajouter les champignons sautés 20 minutes avant la fin.",
+      "Rectifier l'assaisonnement. Servir avec des pommes de terre vapeur."
+    ],
+    "prep_time_min": 30,
+    "cook_time_min": 160,
+    "servings": 6,
+    "cuisine_type": "française",
+    "tags": ["bœuf", "mijoté", "bourgogne", "vin-rouge", "classique", "sans-gluten"],
+    "difficulty": 4
+  },
+  {
+    "title": "Crêpes bretonnes",
+    "ingredients": [
+      "250 g de farine",
+      "3 œufs",
+      "50 cl de lait",
+      "25 cl d'eau",
+      "1 pincée de sel",
+      "2 cs de beurre fondu"
+    ],
+    "instructions": [
+      "Mélanger la farine et le sel dans un saladier. Creuser un puits.",
+      "Casser les œufs au centre et mélanger progressivement avec la farine.",
+      "Ajouter le lait petit à petit en fouettant pour éviter les grumeaux.",
+      "Incorporer l'eau et le beurre fondu. La pâte doit être fluide.",
+      "Laisser reposer la pâte 1 heure au réfrigérateur.",
+      "Cuire les crêpes dans une crêpière beurrée à feu moyen-fort.",
+      "Empiler les crêpes et couvrir d'un torchon pour les garder souples."
+    ],
+    "prep_time_min": 10,
+    "cook_time_min": 30,
+    "servings": 4,
+    "cuisine_type": "française",
+    "tags": ["crêpes", "breton", "dessert", "végétarien", "petit-déjeuner"],
+    "difficulty": 2
+  },
+  {
+    "title": "Tarte Tatin",
+    "ingredients": [
+      "1 pâte feuilletée (250 g)",
+      "1.2 kg de pommes Golden",
+      "150 g de sucre en poudre",
+      "80 g de beurre",
+      "1 sachet de sucre vanillé",
+      "Crème fraîche pour servir"
+    ],
+    "instructions": [
+      "Préchauffer le four à 200°C. Peler, épépiner et couper les pommes en 4.",
+      "Dans un moule à tarte allant au feu, faire fondre le beurre.",
+      "Ajouter le sucre et cuire à feu moyen jusqu'à obtenir un caramel doré.",
+      "Disposer les quartiers de pommes debout en rosace serrée sur le caramel.",
+      "Cuire 10 minutes à feu moyen pour attendrir les pommes.",
+      "Recouvrir avec la pâte feuilletée en rentrant les bords sous les pommes.",
+      "Enfourner 25 minutes jusqu'à dorure de la pâte.",
+      "Laisser reposer 5 minutes puis retourner délicatement sur un plat."
+    ],
+    "prep_time_min": 20,
+    "cook_time_min": 40,
+    "servings": 6,
+    "cuisine_type": "française",
+    "tags": ["tarte", "pommes", "dessert", "caramel", "classique", "végétarien"],
+    "difficulty": 3
+  },
+  {
+    "title": "Soupe à l'oignon gratinée",
+    "ingredients": [
+      "8 oignons jaunes (environ 1 kg)",
+      "50 g de beurre",
+      "2 cs d'huile",
+      "1 cs de farine",
+      "15 cl de vin blanc sec",
+      "1.2 l de bouillon de bœuf",
+      "1 baguette",
+      "150 g de gruyère râpé",
+      "Sel, poivre, thym"
+    ],
+    "instructions": [
+      "Émincer finement les oignons. Faire fondre beurre + huile dans une grande casserole.",
+      "Ajouter les oignons et cuire 40 minutes à feu doux en remuant régulièrement.",
+      "Les oignons doivent être dorés et caramélisés.",
+      "Saupoudrer de farine, mélanger 2 minutes puis déglacer au vin blanc.",
+      "Ajouter le bouillon, le thym, sel et poivre. Cuire 20 minutes.",
+      "Préchauffer le grill du four. Toaster les tranches de baguette.",
+      "Répartir la soupe dans des bols allant au four, déposer les croûtons, parsemer de gruyère.",
+      "Gratiner sous le grill 3-5 minutes jusqu'à dorure."
+    ],
+    "prep_time_min": 10,
+    "cook_time_min": 65,
+    "servings": 4,
+    "cuisine_type": "française",
+    "tags": ["soupe", "oignon", "gratiné", "hiver", "bistrot", "classique"],
+    "difficulty": 2
+  },
+  {
+    "title": "Coq au vin",
+    "ingredients": [
+      "1 coq ou poulet fermier (1.8 kg) découpé",
+      "75 cl de vin rouge (Bourgogne ou Pinot Noir)",
+      "150 g de lardons",
+      "200 g de champignons de Paris",
+      "20 petits oignons grelots",
+      "3 gousses d'ail",
+      "2 cs de farine",
+      "1 bouquet garni",
+      "5 cl de cognac",
+      "2 cs d'huile, 30 g de beurre",
+      "Sel, poivre"
+    ],
+    "instructions": [
+      "Faire mariner les morceaux de poulet dans le vin rouge avec les aromates 4-12h.",
+      "Égoutter la volaille, conserver la marinade. Faire dorer les morceaux dans l'huile et le beurre.",
+      "Faire flamber au cognac.",
+      "Faire revenir séparément lardons, oignons grelots et champignons.",
+      "Singer la volaille de farine, puis verser la marinade.",
+      "Ajouter tous les éléments et le bouquet garni. Cuire 1h30 à feu doux.",
+      "Rectifier l'assaisonnement. Servir avec des nouilles ou des pommes vapeur."
+    ],
+    "prep_time_min": 30,
+    "cook_time_min": 110,
+    "servings": 4,
+    "cuisine_type": "française",
+    "tags": ["poulet", "vin-rouge", "mijoté", "classique", "champignons", "sans-gluten"],
+    "difficulty": 4
+  },
+  {
+    "title": "Blanquette de veau",
+    "ingredients": [
+      "1.2 kg d'épaule de veau coupée en cubes",
+      "3 carottes",
+      "2 oignons",
+      "1 poireau",
+      "2 branches de céleri",
+      "1 bouquet garni",
+      "200 g de champignons de Paris",
+      "30 cl de crème fraîche",
+      "2 jaunes d'œufs",
+      "Jus d'un citron",
+      "40 g de beurre, 40 g de farine",
+      "Sel, poivre, noix de muscade"
+    ],
+    "instructions": [
+      "Blanchir les morceaux de veau : départ eau froide, porter à ébullition, égoutter et rincer.",
+      "Remettre la viande dans la cocotte avec les légumes, le bouquet garni. Couvrir d'eau froide.",
+      "Cuire à frémissement 1h30 à couvert. Récupérer le bouillon et filtrer.",
+      "Préparer le velouté : faire un roux avec beurre et farine, mouiller avec 60 cl de bouillon.",
+      "Cuire le velouté 10 minutes en remuant. Ajouter les champignons cuits séparément.",
+      "Hors du feu, lier avec les jaunes d'œufs et la crème. Ajouter le jus de citron.",
+      "Ajouter la viande et les légumes dans la sauce. Rectifier l'assaisonnement.",
+      "Servir avec du riz blanc ou des pommes vapeur."
+    ],
+    "prep_time_min": 25,
+    "cook_time_min": 110,
+    "servings": 6,
+    "cuisine_type": "française",
+    "tags": ["veau", "blanquette", "crème", "classique", "mijoté", "sauce-blanche"],
+    "difficulty": 4
+  }
+]

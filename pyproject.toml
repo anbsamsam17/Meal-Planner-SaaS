@@ -1,0 +1,173 @@
+# pyproject.toml — Racine du workspace uv (MealPlanner SaaS)
+#
+# Ce fichier configure :
+#   1. Le workspace uv : apps/api et apps/worker partagent leurs dépendances
+#   2. Les dépendances de développement partagées (tests, linting, formatage)
+#   3. La configuration ruff (linter + formatter Python)
+#   4. La configuration mypy (vérification statique des types)
+#   5. La configuration pytest (découverte des tests)
+#
+# Usage :
+#   uv sync          — installe toutes les dépendances (api + worker + dev)
+#   uv run pytest    — lance les tests depuis la racine
+#   uv run ruff check .  — lint tout le code Python
+
+# =============================================================================
+# WORKSPACE UV
+# Déclare les membres du workspace Python (apps Python uniquement — pas apps/web)
+# =============================================================================
+[tool.uv.workspace]
+# FIX Phase 1 (review 2026-04-12, appliqué par Orchestrator) :
+# packages/db a été créé par backend-developer et ajouté au workspace.
+# Ce package contient les modèles SQLAlchemy partagés entre apps/api et apps/worker.
+members = ["apps/api", "apps/worker", "packages/db"]
+
+# =============================================================================
+# DÉPENDANCES DE DÉVELOPPEMENT PARTAGÉES
+# Installées dans l'environnement racine, disponibles pour tous les membres
+# =============================================================================
+[tool.uv]
+dev-dependencies = [
+  # Tests
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "pytest-cov>=4.1",
+  "httpx>=0.27",           # Client HTTP async pour les tests FastAPI (TestClient)
+  "respx>=0.21",           # Mock des requêtes httpx dans les tests
+  "factory-boy>=3.3",      # Factories pour les fixtures de test
+  # Qualité du code
+  "ruff>=0.4",             # Linter + formatter Python (remplace flake8 + isort + black)
+  "mypy>=1.10",            # Vérification statique des types
+  # Hooks de pre-commit
+  "pre-commit>=3.7",
+  # Sécurité
+  "pip-audit>=2.7",        # Audit des CVE dans les dépendances Python
+]
+
+# =============================================================================
+# RUFF — Linter + Formatter Python
+# Remplace : flake8, isort, pyupgrade, autoflake, black
+# Documentation : https://docs.astral.sh/ruff/
+# =============================================================================
+[tool.ruff]
+# Cible Python 3.12 — active les règles spécifiques à la version
+target-version = "py312"
+# Longueur de ligne à 100 (compromis lisibilité / largeur écran moderne)
+line-length = 100
+# Répertoires exclus du linting (artefacts de build, venvs, migrations alembic)
+exclude = [
+  ".venv",
+  ".uv",
+  "__pycache__",
+  "dist",
+  "build",
+  "*.egg-info",
+  "apps/api/alembic/versions",  # Les migrations Alembic sont auto-générées
+]
+
+[tool.ruff.lint]
+# Règles activées :
+#   E, W   — pycodestyle (erreurs et avertissements PEP 8)
+#   F      — pyflakes (erreurs logiques : variables non utilisées, imports inutiles)
+#   I      — isort (ordre des imports)
+#   UP     — pyupgrade (modernisation syntaxe Python)
+#   B      — flake8-bugbear (patterns problématiques)
+#   SIM    — flake8-simplify (simplifications de code)
+#   TCH    — flake8-type-checking (imports uniquement utilisés dans les annotations)
+#   RUF    — règles spécifiques Ruff
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "TCH", "RUF"]
+# Règles ignorées explicitement avec justification
+ignore = [
+  "E501",    # Longueur de ligne : gérée par ruff format, pas le linter
+  "B008",    # Ne pas appeler de fonctions dans les arguments par défaut
+             # — FastAPI dépend de ce pattern pour Depends()
+  "RUF012",  # Annotations de classe mutable — false positifs avec SQLAlchemy
+]
+
+[tool.ruff.lint.isort]
+# Force les imports connus comme "first party" (évite les faux "third-party")
+known-first-party = ["src"]
+# Sépare les imports stdlib / third-party / local par une ligne vide
+force-sort-within-sections = false
+
+[tool.ruff.format]
+# Style de guillemets (cohérence avec les projets Python modernes)
+quote-style = "double"
+# Indentation par espaces (pas de tabs — PEP 8)
+indent-style = "space"
+# Virgule finale dans les structures multi-lignes (facilite les diffs git)
+skip-magic-trailing-comma = false
+
+# =============================================================================
+# MYPY — Vérification statique des types Python
+# Documentation : https://mypy.readthedocs.io/
+# =============================================================================
+[tool.mypy]
+python_version = "3.12"
+# Mode strict : active toutes les vérifications recommandées
+# Inclut : --disallow-untyped-defs, --no-implicit-optional, --warn-return-any, etc.
+strict = true
+# Ignorer les imports tiers sans stubs de types (courant avec FastAPI ecosystem)
+ignore_missing_imports = true
+# Exclure les migrations Alembic (auto-générées, pas de types complets)
+exclude = [
+  "apps/api/alembic/",
+  "apps/api/tests/",    # Les tests peuvent avoir des patterns de type assouplis
+  "apps/worker/tests/",
+]
+# Plugins mypy pour SQLAlchemy et Pydantic
+plugins = ["pydantic.mypy"]
+
+[tool.mypy.overrides]
+# Assoupli pour les fichiers de tests (moins strict sur les mocks et fixtures)
+module = ["tests.*", "conftest"]
+disallow_untyped_defs = false
+
+# =============================================================================
+# PYTEST — Framework de tests
+# Documentation : https://docs.pytest.org/
+# =============================================================================
+[tool.pytest.ini_options]
+# Mode asyncio par défaut pour tous les tests async (pytest-asyncio)
+asyncio_mode = "auto"
+# Répertoires de découverte des tests
+testpaths = ["apps/api/tests", "apps/worker/tests"]
+# Options par défaut appliquées à chaque run pytest
+addopts = [
+  "--strict-markers",    # Erreur si un marker inconnu est utilisé
+  "--strict-config",     # Erreur si pytest.ini contient des options inconnues
+  "-ra",                 # Affiche le résumé de tous les tests non-passants
+]
+# Marqueurs personnalisés (évite les warnings "unknown marker")
+markers = [
+  "unit: Tests unitaires rapides et isolés",
+  "integration: Tests d'intégration avec vraie DB ou service externe",
+  "e2e: Tests end-to-end complets",
+  "slow: Tests lents (scraping, génération PDF, embeddings)",
+]
+
+# =============================================================================
+# COVERAGE — Configuration pytest-cov
+# =============================================================================
+[tool.coverage.run]
+# Répertoires à inclure dans la couverture
+source = ["apps/api/src", "apps/worker/src"]
+# Exclure les migrations et les fichiers de configuration
+omit = [
+  "*/alembic/*",
+  "*/tests/*",
+  "*/__init__.py",
+  "*/conftest.py",
+]
+
+[tool.coverage.report]
+# Seuil minimal de couverture (CI fail si en dessous — règle CLAUDE.md)
+fail_under = 80
+# Exclure les lignes impossibles à tester (branches de typing, etc.)
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+]

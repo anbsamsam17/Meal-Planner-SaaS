@@ -1,0 +1,82 @@
+# .dockerignore — Racine du monorepo MealPlanner SaaS
+# FIX Phase 1 (review 2026-04-12) : BUG #9 — sans .dockerignore, Docker envoyait
+# .git/, .venv/, node_modules/, .next/, phase-0/, phase-1/_reviews/ etc. au daemon.
+# Cela rendait le build context énorme (+500 MB) et ralentissait chaque build CI.
+
+# =============================================================================
+# Git — historique non nécessaire dans l'image
+# =============================================================================
+.git
+.gitignore
+.github
+
+# =============================================================================
+# Python — artefacts de build et environnements virtuels
+# =============================================================================
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.mypy_cache
+.ruff_cache
+.pytest_cache
+*.egg-info
+dist/
+build/
+.coverage
+coverage.xml
+htmlcov/
+
+# =============================================================================
+# Node — modules et artefacts Next.js
+# =============================================================================
+node_modules
+.next
+.turbo
+.pnpm-store
+*.tsbuildinfo
+
+# =============================================================================
+# IDE et outils locaux
+# =============================================================================
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# =============================================================================
+# Variables d'environnement — JAMAIS dans une image Docker
+# =============================================================================
+.env
+.env.local
+.env.*.local
+CLAUDE.local.md
+
+# =============================================================================
+# Documentation et design uniquement (non nécessaire au runtime)
+# =============================================================================
+phase-0
+phase-1/_reviews
+memory
+CLAUDE.md
+docs
+*.md
+roadmap-mealplanner.html
+PROMPT_OPTIMISE.md
+
+# =============================================================================
+# Données de test et fixtures volumineuses
+# =============================================================================
+tests-data
+*.sql.bak
+
+# =============================================================================
+# Scripts de développement local (non nécessaires dans l'image)
+# =============================================================================
+scripts/memory.sh
+scripts/memory.ps1
+scripts/setup.sh
+scripts/setup.ps1
