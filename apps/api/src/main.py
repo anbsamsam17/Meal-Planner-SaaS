@@ -16,6 +16,7 @@ Architecture lifespan :
   À l'arrêt : fermeture propre des connexions (graceful shutdown SIGTERM).
 """
 
+import os
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
