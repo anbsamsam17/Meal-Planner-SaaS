@@ -76,9 +76,21 @@ async def _get_household_id(session: AsyncSession, user_id: str) -> str:
 
 
 class FridgeItemCreate(BaseModel):
-    """Corps pour ajouter un item au frigo."""
+    """
+    Corps pour ajouter un item au frigo.
 
-    ingredient_id: UUID = Field(description="UUID de l'ingrédient en base.")
+    FIX P1-6 (audit-backend-v3 2026-04-13) : accepte ingredient_id OU ingredient_name.
+    Si ingredient_name est fourni sans ingredient_id, on cherche l'ingredient par nom.
+    """
+
+    ingredient_id: UUID | None = Field(
+        default=None, description="UUID de l'ingrédient en base. Prioritaire sur ingredient_name."
+    )
+    ingredient_name: str | None = Field(
+        default=None,
+        max_length=200,
+        description="Nom de l'ingrédient (recherche par canonical_name). Utilisé si ingredient_id absent.",
+    )
     quantity: float | None = Field(default=None, ge=0, description="Quantité.")
     unit: str | None = Field(default=None, max_length=50, description="Unité (ex: g, ml, pièce).")
     expiry_date: date | None = Field(
@@ -214,19 +226,41 @@ async def add_fridge_item(
     """
     household_id = await _get_household_id(session, user.user_id)
 
-    # Vérifie que l'ingrédient existe
-    ing_result = await session.execute(
-        text("SELECT id, canonical_name FROM ingredients WHERE id = :ing_id"),
-        {"ing_id": str(body.ingredient_id)},
-    )
-    ing_row = ing_result.mappings().one_or_none()
-    if ing_row is None:
+    # FIX P1-6 (audit-backend-v3 2026-04-13) : accepter ingredient_id OU ingredient_name
+    if body.ingredient_id is None and body.ingredient_name is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Ingrédient {body.ingredient_id} introuvable dans le catalogue.",
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Fournir ingredient_id ou ingredient_name.",
         )
 
-    # Insert (pas d'upsert — on permet plusieurs quantités du même ingrédient)
+    if body.ingredient_id is not None:
+        # Recherche par ID
+        ing_result = await session.execute(
+            text("SELECT id, canonical_name FROM ingredients WHERE id = :ing_id"),
+            {"ing_id": str(body.ingredient_id)},
+        )
+    else:
+        # Recherche par nom (ILIKE pour tolerance casse)
+        ing_result = await session.execute(
+            text(
+                "SELECT id, canonical_name FROM ingredients "
+                "WHERE LOWER(canonical_name) = LOWER(:name) LIMIT 1"
+            ),
+            {"name": body.ingredient_name},
+        )
+
+    ing_row = ing_result.mappings().one_or_none()
+    if ing_row is None:
+        identifier = str(body.ingredient_id) if body.ingredient_id else body.ingredient_name
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Ingredient '{identifier}' introuvable dans le catalogue.",
+        )
+
+    # Utiliser l'ID reel depuis la DB (pas body.ingredient_id qui peut etre None)
+    resolved_ingredient_id = str(ing_row["id"])
+
+    # Insert (pas d'upsert — on permet plusieurs quantites du meme ingredient)
     insert_result = await session.execute(
         text(
             """
@@ -239,7 +273,7 @@ async def add_fridge_item(
         ),
         {
             "hid": household_id,
-            "ing_id": str(body.ingredient_id),
+            "ing_id": resolved_ingredient_id,
             "qty": body.quantity,
             "unit": body.unit,
             "expiry": body.expiry_date.isoformat() if body.expiry_date else None,
@@ -251,7 +285,7 @@ async def add_fridge_item(
     logger.info(
         "fridge_item_added",
         household_id=household_id,
-        ingredient_id=str(body.ingredient_id),
+        ingredient_id=resolved_ingredient_id,
         ingredient_name=ing_row["canonical_name"],
         expiry_date=str(body.expiry_date) if body.expiry_date else None,
     )

@@ -35,9 +35,9 @@ async function fetchRecipe(id: string) {
   const supabase = createServerClient();
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL;
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "https://meal-planner-saas-production.up.railway.app";
 
-  if (!token || !apiBaseUrl) return null;
+  if (!token) return null;
 
   try {
     const response = await fetch(`${apiBaseUrl}/api/v1/recipes/${id}`, {
@@ -73,7 +73,7 @@ async function fetchRecipe(id: string) {
 
       // Normaliser rating (API: quality_score 0-1 → Frontend: rating_average 1-5)
       if (data.quality_score != null && data.rating_average == null) {
-        data.rating_average = data.quality_score * 5;
+        data.rating_average = Math.min(5, data.quality_score * 5);
       }
 
       // Garantir que les tableaux sont bien des tableaux (jamais null/undefined)
@@ -160,78 +160,80 @@ export default async function RecipePage({ params }: RecipePageProps) {
     : "";
 
   return (
-    <div className="min-h-full">
-      {/* Hero avec image */}
-      <div className="relative h-64 w-full md:h-80 lg:h-96">
+    <div className="min-h-full bg-white dark:bg-neutral-900">
+      {/* Photo hero plein ecran */}
+      <div className="relative h-[40vh] min-h-[300px] w-full overflow-hidden">
         <Image
           src={heroImageUrl}
           alt={recipe.title}
           fill
           sizes="100vw"
           className="object-cover"
-          priority // Image hero — toujours prioritaire
+          priority
         />
 
-        {/* Overlay gradient bas */}
-        <div className="absolute inset-0 bg-gradient-to-t from-neutral-900/80 via-neutral-900/20 to-transparent" />
+        {/* Gradient overlay bas */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
         {/* Bouton retour */}
         <Link
-          href="/dashboard"
+          href="/recipes"
           className="absolute left-4 top-4 flex h-10 w-10 items-center justify-center
             rounded-full bg-white/80 text-neutral-700 backdrop-blur-sm
             transition-colors hover:bg-white focus-visible:outline-none
             focus-visible:ring-2 focus-visible:ring-primary-500 dark:bg-neutral-800/80 dark:text-neutral-200"
-          aria-label="Retour au planning"
+          aria-label="Retour aux recettes"
         >
           <ChevronLeft className="h-5 w-5" aria-hidden="true" />
         </Link>
-
-        {/* Titre et métadonnées en overlay bas */}
-        <div className="absolute bottom-0 left-0 right-0 p-5">
-          <h1 className="font-serif mb-2 text-2xl font-bold text-white md:text-3xl">
-            {recipe.title}
-          </h1>
-
-          <div className="flex flex-wrap items-center gap-3 text-sm text-white/80">
-            {/* Cuisine */}
-            {recipe.cuisine && (
-              <span className="font-medium text-white/60">{recipe.cuisine}</span>
-            )}
-
-            {/* Temps — n'afficher que si la valeur est disponible */}
-            {recipe.total_time_minutes != null && recipe.total_time_minutes > 0 && (
-              <span className="flex items-center gap-1">
-                <Clock className="h-4 w-4" aria-hidden="true" />
-                {recipe.total_time_minutes} min
-              </span>
-            )}
-
-            {/* Portions */}
-            {recipe.servings > 0 && (
-              <span className="flex items-center gap-1">
-                <Users className="h-4 w-4" aria-hidden="true" />
-                {recipe.servings} pers.
-              </span>
-            )}
-
-            {/* Difficulté */}
-            {difficultyLabel && <span>{difficultyLabel}</span>}
-
-            {/* Rating — protégé : .toFixed(1) sur un number garanti non-null */}
-            {ratingAverage != null && (
-              <span className="flex items-center gap-1">
-                <Star className="h-4 w-4 fill-amber-400 text-amber-400" aria-hidden="true" />
-                {ratingAverage.toFixed(1)} ({recipe.rating_count ?? 0} avis)
-              </span>
-            )}
-          </div>
-        </div>
       </div>
 
-      {/* Contenu de la fiche — Tabs client pour les interactions */}
-      <div className="mx-auto max-w-2xl px-4 py-6 md:px-6">
-        <RecipeTabsClient recipe={recipe} />
+      {/* Contenu -- card qui remonte sur la photo */}
+      <div className="relative -mt-8 rounded-t-3xl bg-white px-6 pt-6 pb-8 dark:bg-neutral-900">
+        {/* Badge categorie */}
+        <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#E2725B]">
+          {recipe.cuisine?.toUpperCase() || "RECETTE PREMIUM"}
+        </p>
+
+        {/* Titre */}
+        <h1 className="mt-2 font-serif text-2xl font-bold leading-tight text-[#201a19] md:text-3xl dark:text-neutral-100">
+          {recipe.title}
+        </h1>
+
+        {/* Metadonnees en icones */}
+        <div className="mt-4 flex items-center gap-4 text-sm text-[#857370] dark:text-neutral-400">
+          {recipe.total_time_minutes != null && recipe.total_time_minutes > 0 && (
+            <span className="flex items-center gap-1.5">
+              <Clock className="h-4 w-4" aria-hidden="true" />
+              {recipe.total_time_minutes} min
+            </span>
+          )}
+
+          <span className="flex items-center gap-1.5">
+            <Users className="h-4 w-4" aria-hidden="true" />
+            {recipe.servings ?? 4} pers.
+          </span>
+
+          <span className="flex items-center gap-1.5">
+            <Star
+              className="h-4 w-4 fill-amber-400 text-amber-400"
+              aria-hidden="true"
+            />
+            {difficultyLabel || "Moyen"}
+          </span>
+        </div>
+
+        {/* Description */}
+        {recipe.description && (
+          <p className="mt-4 text-sm leading-relaxed text-[#857370] dark:text-neutral-400">
+            {recipe.description}
+          </p>
+        )}
+
+        {/* Tabs : Ingredients / Instructions / Nutrition */}
+        <div className="mt-6">
+          <RecipeTabsClient recipe={recipe} />
+        </div>
       </div>
     </div>
   );

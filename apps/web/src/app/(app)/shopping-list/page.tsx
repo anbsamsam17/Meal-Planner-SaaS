@@ -67,16 +67,7 @@ export default function ShoppingListPage() {
     quantity_display: formatQuantities(item.quantities),
   }));
 
-  // Grouper par rayon (utiliser le rayon FR de l'API si disponible)
-  const byRayon = new Map<string, ShoppingListItemType[]>();
-  for (const item of items) {
-    const rayon = (item as any).rayon ?? RAYON_LABELS[item.category] ?? "Divers";
-    const group = byRayon.get(rayon) ?? [];
-    group.push(item);
-    byRayon.set(rayon, group);
-  }
-
-  // Legacy groupement par category pour le rendu existant
+  // Grouper par category pour le rendu
   const byCategory = new Map<IngredientCategory, ShoppingListItemType[]>();
   for (const item of items) {
     const group = byCategory.get(item.category) ?? [];

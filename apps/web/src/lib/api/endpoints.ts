@@ -265,7 +265,7 @@ export async function swapMeal(
 }
 
 export async function getShoppingList(planId: string): Promise<ShoppingListItem[]> {
-  return apiClient.get<ShoppingListItem[]>(`/api/v1/plans/me/${planId}/shopping-list`);
+  return apiClient.get<ShoppingListItem[]>(`/api/v1/plans/${planId}/shopping-list`);
 }
 
 // --- Normalisation Recipe : mappe les champs API bruts vers les champs frontend ---
@@ -306,7 +306,7 @@ function normalizeRecipe(apiRecipe: Record<string, unknown>): Recipe {
     cuisine: raw.cuisine_type ?? raw.cuisine ?? null,
     difficulty: mapDifficulty(raw.difficulty),
     dietary_tags: raw.tags ?? raw.dietary_tags ?? [],
-    rating_average: raw.quality_score != null ? raw.quality_score * 5 : (raw.rating_average ?? null),
+    rating_average: raw.quality_score != null ? Math.min(5, raw.quality_score * 5) : (raw.rating_average ?? null),
     rating_count: raw.rating_count ?? 0,
     servings: raw.servings ?? null,
     // Champs API originaux conservés pour les composants qui les lisent directement

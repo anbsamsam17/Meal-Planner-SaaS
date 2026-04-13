@@ -58,12 +58,12 @@ async def _get_household_subscription(
         household_id: UUID du foyer (str).
 
     Returns:
-        dict avec plan_name et status, ou None si aucun abonnement actif.
+        dict avec plan et status, ou None si aucun abonnement actif.
     """
     result = await session.execute(
         text(
             """
-            SELECT plan_name, status, current_period_end
+            SELECT plan, status, current_period_end
             FROM subscriptions
             WHERE household_id = :household_id
               AND status IN ('active', 'trialing')
@@ -129,7 +129,7 @@ def require_plan(min_plan: str = "starter"):
             current_plan = "starter"
             current_level = 0
         else:
-            current_plan = subscription.get("plan_name", "starter")
+            current_plan = subscription.get("plan", "starter")
             current_level = get_plan_level(current_plan)
 
         if current_level < min_level:

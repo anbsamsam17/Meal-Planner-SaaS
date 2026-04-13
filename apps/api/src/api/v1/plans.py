@@ -174,6 +174,15 @@ async def generate_plan(
     # Plus fiable que Celery pour la v1 (pas de dependance Redis inter-containers)
     try:
         # 0. Supprimer l'ancien plan si il existe (regeneration)
+        # FIX P1-5 (audit-backend-v3 2026-04-13) : cascade sur shopping_lists
+        await session.execute(
+            text("""
+                DELETE FROM shopping_lists WHERE plan_id IN (
+                    SELECT id FROM weekly_plans WHERE household_id = :hid AND week_start = :ws
+                )
+            """),
+            {"hid": str(household_id), "ws": body.week_start},
+        )
         await session.execute(
             text("""
                 DELETE FROM planned_meals WHERE plan_id IN (
@@ -723,13 +732,15 @@ async def swap_meal(
         )
         logger.info("plan_reverted_to_draft", plan_id=str(plan_id))
 
-    meal_result = await session.execute(
+    # FIX P1-3 (audit-backend-v3 2026-04-13) : UPDATE puis SELECT JOIN
+    # pour retourner les donnees enrichies (recipe_title, etc.)
+    update_result = await session.execute(
         text(
             """
             UPDATE planned_meals
             SET recipe_id = :new_recipe_id
             WHERE id = :meal_id AND plan_id = :plan_id
-            RETURNING id, plan_id, day_of_week, slot, recipe_id, servings_adjusted
+            RETURNING id
             """
         ),
         {
@@ -738,14 +749,31 @@ async def swap_meal(
             "new_recipe_id": str(body.new_recipe_id),
         },
     )
-    meal_row = meal_result.mappings().one_or_none()
-    await session.commit()
+    updated_row = update_result.fetchone()
 
-    if meal_row is None:
+    if updated_row is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Repas {meal_id} introuvable dans ce plan.",
         )
+
+    # SELECT enrichi avec JOIN recipes pour peupler recipe_title, etc.
+    enriched = await session.execute(
+        text("""
+            SELECT pm.id, pm.plan_id, pm.day_of_week, pm.slot, pm.recipe_id,
+                   pm.servings_adjusted,
+                   r.title AS recipe_title, r.photo_url AS recipe_photo_url,
+                   r.total_time_min AS recipe_total_time_min,
+                   r.difficulty AS recipe_difficulty,
+                   r.cuisine_type AS recipe_cuisine_type
+            FROM planned_meals pm
+            JOIN recipes r ON r.id = pm.recipe_id
+            WHERE pm.id = :meal_id
+        """),
+        {"meal_id": str(meal_id)},
+    )
+    meal_row = enriched.mappings().one()
+    await session.commit()
 
     logger.info(
         "plan_meal_swapped",
@@ -837,14 +865,15 @@ async def add_meal_to_plan(
             detail=f"Recette {body.recipe_id} introuvable.",
         )
 
-    # Upsert : ON CONFLICT sur (plan_id, day_of_week, slot) remplace la recette
-    meal_result = await session.execute(
+    # FIX P1-3 (audit-backend-v3 2026-04-13) : upsert puis SELECT JOIN
+    # pour retourner les donnees enrichies (recipe_title, etc.)
+    upsert_result = await session.execute(
         text("""
             INSERT INTO planned_meals (id, plan_id, day_of_week, slot, recipe_id, servings_adjusted)
             VALUES (gen_random_uuid(), :pid, :dow, 'dinner', :rid, 4)
             ON CONFLICT (plan_id, day_of_week, slot)
             DO UPDATE SET recipe_id = :rid
-            RETURNING id, plan_id, day_of_week, slot, recipe_id, servings_adjusted
+            RETURNING id
         """),
         {
             "pid": str(plan_id),
@@ -852,7 +881,25 @@ async def add_meal_to_plan(
             "rid": str(body.recipe_id),
         },
     )
-    meal_row = meal_result.mappings().one()
+    inserted_row = upsert_result.fetchone()
+    meal_id = str(inserted_row[0])
+
+    # SELECT enrichi avec JOIN recipes
+    enriched = await session.execute(
+        text("""
+            SELECT pm.id, pm.plan_id, pm.day_of_week, pm.slot, pm.recipe_id,
+                   pm.servings_adjusted,
+                   r.title AS recipe_title, r.photo_url AS recipe_photo_url,
+                   r.total_time_min AS recipe_total_time_min,
+                   r.difficulty AS recipe_difficulty,
+                   r.cuisine_type AS recipe_cuisine_type
+            FROM planned_meals pm
+            JOIN recipes r ON r.id = pm.recipe_id
+            WHERE pm.id = :meal_id
+        """),
+        {"meal_id": meal_id},
+    )
+    meal_row = enriched.mappings().one()
     await session.commit()
 
     logger.info(
@@ -1002,9 +1049,74 @@ RAYON_MAP = {
     "herb": "Herbes fraiches",
 }
 
+# FIX P1-4 (audit-backend-v3 2026-04-13) : mapping intelligent par mot-cle
+# Les ingredients importes de TheMealDB ont tous category="other".
+# Ce dictionnaire mappe le nom canonique de l'ingredient vers un rayon reel.
+INGREDIENT_RAYON_KEYWORDS: dict[str, list[str]] = {
+    "Fruits & legumes": [
+        "potato", "carrot", "onion", "garlic", "tomato", "pepper", "lettuce",
+        "cucumber", "spinach", "broccoli", "mushroom", "celery", "ginger",
+        "lemon", "lime", "avocado", "bean", "pea", "corn", "zucchini",
+        "courgette", "aubergine", "eggplant", "cabbage", "leek", "shallot",
+        "radish", "turnip", "beetroot", "asparagus", "artichoke", "pumpkin",
+        "squash", "sweet potato", "apple", "banana", "orange", "pear",
+        "strawberr", "blueberr", "raspberr", "grape", "melon", "mango",
+        "pineapple", "peach", "plum", "cherry", "kiwi", "pomegranate",
+    ],
+    "Boucherie": [
+        "chicken", "beef", "pork", "lamb", "turkey", "bacon", "sausage",
+        "mince", "steak", "veal", "duck", "ham", "chorizo", "salami",
+        "prosciutto", "pancetta",
+    ],
+    "Poissonnerie": [
+        "salmon", "tuna", "shrimp", "prawn", "cod", "fish", "anchov",
+        "crab", "lobster", "mussel", "clam", "oyster", "squid", "octopus",
+        "sardine", "mackerel", "trout", "sea bass", "haddock",
+    ],
+    "Cremerie": [
+        "milk", "cream", "cheese", "butter", "yogurt", "yoghurt", "egg",
+        "creme fraiche", "mascarpone", "ricotta", "mozzarella", "parmesan",
+        "feta", "brie", "camembert", "gouda", "cheddar", "gruyere",
+    ],
+    "Epicerie": [
+        "flour", "sugar", "rice", "pasta", "noodle", "bread", "oil",
+        "vinegar", "soy sauce", "stock", "broth", "honey", "syrup",
+        "baking", "yeast", "cocoa", "chocolate", "coconut milk", "lentil",
+        "chickpea", "couscous", "polenta", "semolina", "cornflour",
+        "breadcrumb", "panko", "tortilla", "wrap",
+    ],
+    "Epices": [
+        "salt", "cumin", "paprika", "cinnamon", "oregano", "basil",
+        "thyme", "rosemary", "parsley", "chili", "chilli", "curry",
+        "turmeric", "nutmeg", "clove", "cardamom", "coriander", "dill",
+        "bay leaf", "saffron", "vanilla", "mint", "tarragon", "sage",
+        "fennel seed", "mustard seed", "star anise", "allspice",
+    ],
+}
+
+
+def _smart_rayon(canonical_name: str) -> str:
+    """
+    Determine le rayon de supermarche a partir du nom canonique de l'ingredient.
+
+    Utilise un matching par mots-cles pour contourner le probleme des ingredients
+    importes de TheMealDB dont la categorie est toujours "other".
+
+    Args:
+        canonical_name: Nom canonique de l'ingredient (ex: "chicken breast").
+
+    Returns:
+        Nom du rayon (ex: "Boucherie").
+    """
+    name_lower = canonical_name.lower()
+    for rayon, keywords in INGREDIENT_RAYON_KEYWORDS.items():
+        if any(kw in name_lower for kw in keywords):
+            return rayon
+    return "Epicerie"
+
 
 def _map_category_to_rayon(cat: str) -> str:
-    """Mappe une categorie d'ingredient a un rayon de supermarche."""
+    """Mappe une categorie d'ingredient a un rayon de supermarche (fallback)."""
     return RAYON_MAP.get(cat, "Epicerie")
 
 
@@ -1012,8 +1124,12 @@ async def _generate_shopping_list(session: AsyncSession, plan_id: Any) -> None:
     """
     Genere la liste de courses a partir des ingredients des recettes du plan.
 
-    Agregue les quantites par ingredient canonique et insere/met a jour
-    la shopping_list en base avec ON CONFLICT pour eviter les doublons.
+    FIX P1-4 (audit-backend-v3 2026-04-13) :
+    - Recupere ingredient_id reel depuis la table ingredients
+    - Utilise _smart_rayon() au lieu de _map_category_to_rayon() pour un mapping
+      intelligent par nom (les categories TheMealDB sont toutes "other")
+    - Cross-reference fridge_items pour marquer in_fridge=True
+    - Peuple off_id depuis ingredients.off_id
 
     Args:
         session: Session SQLAlchemy async (meme transaction que la validation).
@@ -1023,7 +1139,8 @@ async def _generate_shopping_list(session: AsyncSession, plan_id: Any) -> None:
 
     ingredients_result = await session.execute(
         text("""
-            SELECT i.canonical_name, i.category, ri.unit, ri.notes, ri.quantity, ri.position
+            SELECT i.id AS ingredient_id, i.canonical_name, i.category,
+                   i.off_id, ri.unit, ri.notes, ri.quantity, ri.position
             FROM planned_meals pm
             JOIN recipe_ingredients ri ON ri.recipe_id = pm.recipe_id
             JOIN ingredients i ON i.id = ri.ingredient_id
@@ -1035,12 +1152,14 @@ async def _generate_shopping_list(session: AsyncSession, plan_id: Any) -> None:
 
     # Agreger par ingredient
     items_by_name: dict[str, dict] = defaultdict(
-        lambda: {"quantities": [], "category": "other"}
+        lambda: {"quantities": [], "category": "other", "ingredient_id": "", "off_id": None}
     )
     for row in ingredients_result.mappings().all():
         name = row["canonical_name"]
         items_by_name[name]["category"] = row["category"] or "other"
         items_by_name[name]["canonical_name"] = name
+        items_by_name[name]["ingredient_id"] = str(row["ingredient_id"]) if row["ingredient_id"] else ""
+        items_by_name[name]["off_id"] = row.get("off_id")
         items_by_name[name]["quantities"].append(
             {
                 "quantity": float(row["quantity"] or 1),
@@ -1049,16 +1168,38 @@ async def _generate_shopping_list(session: AsyncSession, plan_id: Any) -> None:
             }
         )
 
+    # Cross-reference fridge_items pour marquer les ingredients deja en stock
+    # Recupere le household_id du plan pour filtrer les fridge_items
+    plan_hh_result = await session.execute(
+        text("SELECT household_id FROM weekly_plans WHERE id = :pid"),
+        {"pid": str(plan_id)},
+    )
+    plan_hh_row = plan_hh_result.fetchone()
+    fridge_names: set[str] = set()
+    if plan_hh_row:
+        fridge_result = await session.execute(
+            text("""
+                SELECT i.canonical_name
+                FROM fridge_items fi
+                JOIN ingredients i ON i.id = fi.ingredient_id
+                WHERE fi.household_id = :hid
+            """),
+            {"hid": str(plan_hh_row[0])},
+        )
+        fridge_names = {row[0].lower() for row in fridge_result.fetchall()}
+
     # Construire le JSON et INSERT/UPDATE dans shopping_lists
     items_json = json.dumps(
         [
             {
-                "ingredient_id": "",
+                "ingredient_id": data["ingredient_id"],
                 "canonical_name": name,
                 "category": data["category"],
-                "rayon": _map_category_to_rayon(data["category"]),
+                "rayon": _smart_rayon(name),
+                "off_id": data.get("off_id"),
                 "quantities": data["quantities"],
                 "checked": False,
+                "in_fridge": name.lower() in fridge_names,
             }
             for name, data in items_by_name.items()
         ]

@@ -67,14 +67,14 @@ async def _handle_checkout_completed(
             text(
                 """
                 INSERT INTO subscriptions
-                    (household_id, stripe_customer_id, stripe_subscription_id, plan_name, status)
+                    (household_id, stripe_customer_id, stripe_sub_id, plan, status)
                 VALUES
                     (:hid, :cid, :sid, :plan, 'active')
                 ON CONFLICT (household_id)
                 DO UPDATE SET
                     stripe_customer_id = EXCLUDED.stripe_customer_id,
-                    stripe_subscription_id = EXCLUDED.stripe_subscription_id,
-                    plan_name = EXCLUDED.plan_name,
+                    stripe_sub_id = EXCLUDED.stripe_sub_id,
+                    plan = EXCLUDED.plan,
                     status = 'active',
                     updated_at = NOW()
                 """
@@ -117,11 +117,11 @@ async def _handle_subscription_updated(
                 """
                 UPDATE subscriptions
                 SET
-                    plan_name = COALESCE(:plan, plan_name),
+                    plan = COALESCE(:plan, plan),
                     status = :status,
                     current_period_end = TO_TIMESTAMP(:period_end),
                     updated_at = NOW()
-                WHERE stripe_subscription_id = :sid
+                WHERE stripe_sub_id = :sid
                 """
             ),
             {
@@ -154,8 +154,8 @@ async def _handle_subscription_deleted(
             text(
                 """
                 UPDATE subscriptions
-                SET status = 'canceled', plan_name = 'starter', updated_at = NOW()
-                WHERE stripe_subscription_id = :sid
+                SET status = 'canceled', plan = 'starter', updated_at = NOW()
+                WHERE stripe_sub_id = :sid
                 """
             ),
             {"sid": subscription_id},
@@ -186,7 +186,7 @@ async def _handle_invoice_payment_failed(
                 """
                 UPDATE subscriptions
                 SET status = 'past_due', updated_at = NOW()
-                WHERE stripe_subscription_id = :sid
+                WHERE stripe_sub_id = :sid
                 """
             ),
             {"sid": subscription_id},

@@ -111,6 +111,7 @@ export function SettingsContent() {
     }
 
     try {
+      // Sauvegarder les preferences du membre (alimentation, temps, budget)
       await apiClient.patch(
         `/api/v1/households/me/members/${ownerMember.id}/preferences`,
         {
@@ -124,6 +125,12 @@ export function SettingsContent() {
           budget_pref: null,
         },
       );
+
+      // Sauvegarder le drive provider sur le household
+      const driveValue = form.driveProvider === "none" ? null : form.driveProvider;
+      await apiClient.patch("/api/v1/households/me", {
+        drive_provider: driveValue,
+      });
 
       toast.success("Préférences sauvegardées !", {
         description: "Vos paramètres ont été mis à jour.",

@@ -51,7 +51,7 @@ export default async function AccountPage() {
 
   // Fetch du foyer côté serveur (graceful — pas de crash si API down)
   let householdData: HouseholdResponse | null = null;
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL;
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "https://meal-planner-saas-production.up.railway.app";
 
   if (token && apiBaseUrl) {
     try {

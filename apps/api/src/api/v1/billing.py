@@ -129,7 +129,7 @@ async def _get_or_create_stripe_customer(
     await session.execute(
         text(
             """
-            INSERT INTO subscriptions (household_id, stripe_customer_id, plan_name, status)
+            INSERT INTO subscriptions (household_id, stripe_customer_id, plan, status)
             VALUES (:hid, :cid, 'starter', 'inactive')
             ON CONFLICT (household_id)
             DO UPDATE SET stripe_customer_id = EXCLUDED.stripe_customer_id
@@ -378,7 +378,7 @@ async def get_subscription_status(
     result = await session.execute(
         text(
             """
-            SELECT plan_name, status, current_period_end, stripe_customer_id
+            SELECT plan, status, current_period_end, stripe_customer_id
             FROM subscriptions
             WHERE household_id = :hid
             ORDER BY current_period_end DESC NULLS LAST
@@ -396,7 +396,7 @@ async def get_subscription_status(
     period_end_str = str(period_end) if period_end else None
 
     return SubscriptionStatus(
-        plan=row["plan_name"] or "starter",
+        plan=row["plan"] or "starter",
         status=row["status"] or "inactive",
         current_period_end=period_end_str,
         stripe_customer_id=row.get("stripe_customer_id"),
