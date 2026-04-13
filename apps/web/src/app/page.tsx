@@ -5,7 +5,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Brain, ShoppingCart, BookOpen, Star, CalendarDays, ChefHat, Clock, Users } from "lucide-react";
+import { ArrowRight, Brain, ShoppingCart, BookOpen, Star, CalendarDays, Clock, Users } from "lucide-react";
 import type { Recipe } from "@/lib/api/types";
 
 export const metadata: Metadata = {
@@ -75,6 +75,7 @@ const HOW_IT_WORKS = [
 ] as const;
 
 // Recettes fallback statiques si l'API n'est pas joignable
+// Images Unsplash food éditoriales en placeholder (domaine autorisé dans next.config.mjs)
 const FALLBACK_RECIPES: Array<{
   id: string;
   title: string;
@@ -95,7 +96,8 @@ const FALLBACK_RECIPES: Array<{
     total_time_minutes: 75,
     servings: 4,
     difficulty: "easy",
-    image_url: null,
+    image_url:
+      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop",
     dietary_tags: [],
     rating_average: 4.8,
   },
@@ -107,7 +109,8 @@ const FALLBACK_RECIPES: Array<{
     total_time_minutes: 35,
     servings: 4,
     difficulty: "medium",
-    image_url: null,
+    image_url:
+      "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=800&auto=format&fit=crop",
     dietary_tags: ["vegetarian"],
     rating_average: 4.6,
   },
@@ -119,17 +122,12 @@ const FALLBACK_RECIPES: Array<{
     total_time_minutes: 50,
     servings: 4,
     difficulty: "medium",
-    image_url: null,
+    image_url:
+      "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?q=80&w=800&auto=format&fit=crop",
     dietary_tags: [],
     rating_average: 4.7,
   },
 ];
-
-const DIFFICULTY_LABELS: Record<string, string> = {
-  easy: "Facile",
-  medium: "Moyen",
-  hard: "Difficile",
-};
 
 // BUG 7 FIX : getRecipes déclaré APRÈS FALLBACK_RECIPES pour éviter la TDZ (temporal dead zone)
 // NEXT_PUBLIC_API_URL est embedded au build time par Vercel — disponible en RSC
@@ -156,7 +154,8 @@ async function getRecipes(): Promise<Recipe[]> {
   }
 }
 
-// --- Composant RecipeCardStatic (Server Component, pas de "use client") ---
+// --- Composant StaticRecipeCard (Server Component, pas de "use client") ---
+// Design food premium portrait 4:5 — badge temps terracotta + rating overlay
 // Distinct du RecipeCard client pour éviter le bundle Framer Motion sur la landing
 
 interface StaticRecipeCardProps {
@@ -164,81 +163,75 @@ interface StaticRecipeCardProps {
   priority?: boolean;
 }
 
-function StaticRecipeCard({ recipe }: StaticRecipeCardProps) {
-  const difficultyLabel = DIFFICULTY_LABELS[recipe.difficulty] ?? recipe.difficulty;
+function StaticRecipeCard({ recipe, priority = false }: StaticRecipeCardProps) {
+  const time = recipe.total_time_minutes;
+  const rating =
+    recipe.rating_average != null ? Number(recipe.rating_average).toFixed(1) : null;
 
   return (
-    <article className="group overflow-hidden rounded-2xl bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:scale-[1.02]">
-      {/* Zone image — ratio 16:10 */}
-      <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#fff8f6]">
+    <article className="group block">
+      {/* Image container — ratio portrait 4:5 */}
+      <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-[#857370]/10">
         {recipe.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={recipe.image_url}
             alt={recipe.title}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-            loading="lazy"
+            fill
+            sizes="(max-width: 768px) 100vw, 33vw"
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            priority={priority}
           />
         ) : (
           <div
-            className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100"
+            className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#E2725B]/10 to-[#E2725B]/20"
             aria-hidden="true"
-          >
-            <ChefHat className="h-12 w-12 text-primary-300" strokeWidth={1} />
+          />
+        )}
+
+        {/* Badge temps — overlay haut-droite terracotta */}
+        {time > 0 && (
+          <span className="absolute right-3 top-3 rounded-full bg-[#E2725B]/90 px-3 py-1.5 text-xs font-semibold text-white shadow-sm">
+            {time} MIN
+          </span>
+        )}
+
+        {/* Rating — overlay bas-gauche */}
+        {rating != null && (
+          <div className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-sm">
+            <span className="text-amber-400 text-xs leading-none" aria-hidden="true">★</span>
+            <span className="text-xs font-semibold text-white">{rating}</span>
           </div>
         )}
-
-        {/* Overlay gradient */}
-        <div className="absolute inset-0 bg-gradient-to-t from-neutral-900/40 to-transparent" />
-
-        {/* Badge difficulté */}
-        <div className="absolute right-2 top-2">
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-              recipe.difficulty === "easy"
-                ? "bg-emerald-50 text-emerald-600"
-                : recipe.difficulty === "medium"
-                  ? "bg-amber-50 text-amber-600"
-                  : "bg-red-50 text-red-600"
-            }`}
-          >
-            {difficultyLabel}
-          </span>
-        </div>
       </div>
 
-      {/* Contenu */}
-      <div className="p-4">
-        {recipe.cuisine && (
-          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-400">
-            {recipe.cuisine}
-          </span>
-        )}
-        <h3 className="font-serif mb-2 text-base font-bold text-[#201a19] line-clamp-2">
-          {recipe.title}
-        </h3>
-        {recipe.description && (
-          <p className="mb-3 text-sm leading-relaxed text-neutral-500 line-clamp-2">
-            {recipe.description}
-          </p>
-        )}
+      {/* Catégorie — small caps terracotta outline */}
+      {recipe.cuisine && (
+        <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-[#857370]">
+          {recipe.cuisine}
+        </p>
+      )}
 
-        <div className="flex items-center gap-3 text-xs text-neutral-400">
+      {/* Titre — Noto Serif bold, 2 lignes max */}
+      <h3 className="mt-1 font-serif text-base font-bold leading-snug text-[#201a19] line-clamp-2 group-hover:text-[#E2725B] transition-colors duration-200">
+        {recipe.title}
+      </h3>
+
+      {/* Meta — temps + personnes */}
+      <div className="mt-2 flex items-center gap-3 text-xs text-[#857370]">
+        <span className="flex items-center gap-1">
+          <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+          {time} min
+        </span>
+        <span className="flex items-center gap-1">
+          <Users className="h-3.5 w-3.5" aria-hidden="true" />
+          {recipe.servings} pers.
+        </span>
+        {rating != null && (
           <span className="flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-            {recipe.total_time_minutes} min
+            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" aria-hidden="true" />
+            {rating}
           </span>
-          <span className="flex items-center gap-1">
-            <Users className="h-3.5 w-3.5" aria-hidden="true" />
-            {recipe.servings} pers.
-          </span>
-          {recipe.rating_average != null && (
-            <span className="flex items-center gap-1">
-              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" aria-hidden="true" />
-              {Number(recipe.rating_average).toFixed(1)}
-            </span>
-          )}
-        </div>
+        )}
       </div>
     </article>
   );
@@ -494,27 +487,32 @@ export default async function LandingPage() {
         </section>
 
         {/* =========================================
-            RECETTES DU MONDE — fetch RSC
+            RECETTES DU MONDE — fetch RSC, design food premium portrait
         ========================================= */}
         <section
           id="recipes"
-          className="border-t border-neutral-200 bg-[hsl(38,60%,97%)] px-6 py-20"
+          className="border-t border-neutral-200 bg-[#fff8f6] px-6 py-20"
           aria-labelledby="recipes-title"
         >
           <div className="mx-auto max-w-5xl">
+            {/* Sous-titre small caps terracotta */}
+            <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-[#E2725B]">
+              Des saveurs du monde entier
+            </p>
             <h2
               id="recipes-title"
-              className="font-serif mb-4 text-center text-4xl font-semibold text-neutral-900"
+              className="font-serif mt-2 mb-4 text-center text-4xl font-bold text-[#201a19]"
             >
               Des recettes du monde entier
             </h2>
-            <p className="mb-12 text-center text-base text-neutral-500">
+            <p className="mb-12 text-center text-base text-[#857370]">
               Plus de 200 recettes testées, adaptées aux familles françaises.
               {recipes.length === 0 && (
-                <span className="ml-1 text-xs text-neutral-400">(aperçu — données illustratives)</span>
+                <span className="ml-1 text-xs text-[#857370]/60">(aperçu — données illustratives)</span>
               )}
             </p>
 
+            {/* Grille portrait 4:5 — 1 colonne mobile → 3 desktop */}
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {displayRecipes.map((recipe, index) => (
                 <StaticRecipeCard
@@ -525,9 +523,15 @@ export default async function LandingPage() {
               ))}
             </div>
 
-            <p className="mt-8 text-center text-sm text-neutral-400">
-              Et des centaines d&apos;autres recettes générées par Presto chaque semaine.
-            </p>
+            <div className="mt-10 text-center">
+              <Link
+                href="/recipes"
+                className="inline-flex items-center gap-2 rounded-full border border-[#857370]/20 bg-white px-6 py-3 text-sm font-medium text-[#201a19] transition-all hover:border-[#E2725B]/40 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2725B]/40"
+              >
+                Explorer toutes les recettes
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </div>
           </div>
         </section>
 

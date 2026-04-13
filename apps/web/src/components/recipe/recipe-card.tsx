@@ -1,231 +1,127 @@
 // apps/web/src/components/recipe/recipe-card.tsx
-// Carte recette premium — design food-editorial
-// Image 16:9, badge difficulté overlay, titre Noto Serif, rating étoiles dorées
-// Référence : 04-components-catalog.md #03 Card Recipe
+// Carte recette premium — design food editorial portrait 4:5
+// Photo portrait grande, badge temps terracotta overlay haut-droite,
+// rating étoile dorée overlay bas-gauche, titre Noto Serif, catégorie small caps
+// Référence design : food-app premium (terracotta #E2725B, cream #fff8f6)
 "use client";
 
 import Image from "next/image";
 import Link from "next/link";
-import { Star } from "lucide-react";
-import { MotionDiv } from "@/components/motion";
 import { cn } from "@/lib/utils";
 import type { Recipe } from "@/lib/api/types";
 
-type RecipeCardVariant = "sm" | "md" | "lg";
+// --- Images Unsplash placeholder pour les recettes sans photo ---
+// Sélection food éditoriale variée : légumes, pâtes, plat en sauce, pizza, petit-déj, viande
+const PLACEHOLDER_IMAGES = [
+  "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=800&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1473093226795-af9932fe5856?q=80&w=800&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?q=80&w=800&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?q=80&w=800&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1482049016688-2d3e1b311543?q=80&w=800&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop",
+] as const;
+
+// Déterministe : même recette → même image placeholder (évite le flash au SSR)
+function getPlaceholderImage(id: string): string {
+  const index = id.charCodeAt(0) % PLACEHOLDER_IMAGES.length;
+  return PLACEHOLDER_IMAGES[index] ?? PLACEHOLDER_IMAGES[0];
+}
 
 interface RecipeCardProps {
   recipe: Recipe;
-  mealLabel?: string; // Ex: "Lundi", "Mardi"
-  variant?: RecipeCardVariant;
-  priority?: boolean; // next/image priority pour les 2 premières
+  mealLabel?: string; // Ex: "Lundi", "Mardi" — affiché en overlay haut-gauche
+  priority?: boolean; // next/image priority pour les 2-3 premières cards
   onSwap?: () => void;
   className?: string;
-}
-
-// Mapping difficulté → label FR + classes badge warm
-const DIFFICULTY_CONFIG = {
-  1: { label: "Très facile", color: "bg-emerald-50 text-emerald-700" },
-  2: { label: "Facile", color: "bg-emerald-50 text-emerald-700" },
-  3: { label: "Moyen", color: "bg-amber-50 text-amber-700" },
-  4: { label: "Difficile", color: "bg-orange-50 text-orange-700" },
-  5: { label: "Expert", color: "bg-red-50 text-red-700" },
-  easy: { label: "Facile", color: "bg-emerald-50 text-emerald-700" },
-  medium: { label: "Moyen", color: "bg-amber-50 text-amber-700" },
-  hard: { label: "Difficile", color: "bg-orange-50 text-orange-700" },
-} as const;
-
-type DifficultyKey = keyof typeof DIFFICULTY_CONFIG;
-
-function getDifficultyConfig(difficulty: string | number) {
-  const key = difficulty as DifficultyKey;
-  return (
-    DIFFICULTY_CONFIG[key] ?? { label: String(difficulty), color: "bg-neutral-50 text-neutral-700" }
-  );
+  // variant conservé pour compatibilité descendante (PlanWeekGrid)
+  variant?: "sm" | "md" | "lg";
 }
 
 export function RecipeCard({
   recipe,
   mealLabel,
-  variant = "md",
   priority = false,
   onSwap,
   className,
 }: RecipeCardProps) {
-  const totalMinutes = recipe.total_time_minutes;
-  const difficultyConfig = getDifficultyConfig(recipe.difficulty);
-
-  // Hauteur image selon variant — on force aspect-ratio 16/10 via CSS mais on adapte la hauteur min
-  const imageContainerClass: Record<RecipeCardVariant, string> = {
-    sm: "aspect-[16/10]",
-    md: "aspect-[16/10]",
-    lg: "aspect-[16/9]",
-  };
+  const imageUrl = recipe.image_url ?? getPlaceholderImage(recipe.id);
+  const time = recipe.total_time_minutes;
+  // rating_average est 1.0–5.0, on l'affiche directement avec .toFixed(1)
+  const rating = recipe.rating_average != null ? Number(recipe.rating_average).toFixed(1) : null;
 
   return (
-    <MotionDiv
-      whileHover={{ scale: 1.02, y: -2 }}
-      transition={{ type: "spring", stiffness: 350, damping: 28, mass: 0.8 }}
-      className={cn(
-        "group cursor-pointer overflow-hidden rounded-2xl bg-white",
-        "shadow-sm transition-shadow duration-300 hover:shadow-md",
-        "dark:bg-neutral-800",
-        className,
-      )}
-    >
-      {/* Zone image 16:10 — coins arrondis xl via overflow-hidden sur le parent */}
-      <Link
-        href={`/recipes/${recipe.id}`}
-        aria-label={`Voir la recette : ${recipe.title}`}
-        className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-inset"
-      >
-        <div className={cn("relative w-full overflow-hidden", imageContainerClass[variant])}>
-          {recipe.image_url ? (
-            <Image
-              src={recipe.image_url}
-              alt={recipe.title}
-              fill
-              sizes={
-                variant === "lg"
-                  ? "(max-width: 768px) 100vw, 50vw"
-                  : "(max-width: 768px) 50vw, 33vw"
-              }
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
-              priority={priority}
-            />
-          ) : (
-            // Placeholder gradient warm si pas d'image
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100">
-              <span className="text-5xl opacity-40" aria-hidden="true">
-                🍽️
-              </span>
-            </div>
-          )}
+    <Link href={`/recipes/${recipe.id}`} className={cn("group block", className)}>
+      {/* Image container — ratio portrait 4:5 */}
+      <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-[#857370]/10">
+        <Image
+          src={imageUrl}
+          alt={recipe.title}
+          fill
+          sizes="(max-width: 768px) 50vw, 33vw"
+          className="object-cover transition-transform duration-500 group-hover:scale-105"
+          priority={priority}
+        />
 
-          {/* Overlay gradient warm subtil */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#201a19]/50 to-transparent" />
-
-          {/* Badge jour (coin haut-gauche) */}
-          {mealLabel && (
-            <div className="absolute left-3 top-3">
-              <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#201a19] backdrop-blur-sm">
-                {mealLabel}
-              </span>
-            </div>
-          )}
-
-          {/* Badge difficulté (coin haut-gauche, sous mealLabel si absent) */}
-          {!mealLabel && (
-            <div className="absolute left-3 top-3">
-              <span
-                className={cn(
-                  "rounded-full px-3 py-1 text-xs font-medium backdrop-blur-sm",
-                  difficultyConfig.color,
-                )}
-              >
-                {difficultyConfig.label}
-              </span>
-            </div>
-          )}
-
-          {/* Badge temps (coin bas-droit) */}
-          {totalMinutes && (
-            <div className="absolute bottom-3 right-3">
-              <span className="rounded-full bg-[#201a19]/70 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                {totalMinutes} MIN
-              </span>
-            </div>
-          )}
-        </div>
-      </Link>
-
-      {/* Contenu texte */}
-      <div className="p-4">
-        {/* Catégorie cuisine */}
-        {recipe.cuisine && (
-          <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#857370]">
-            {recipe.cuisine}
+        {/* Badge jour meal-plan — overlay haut-gauche (quand utilisé dans le planning) */}
+        {mealLabel && (
+          <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#201a19] backdrop-blur-sm shadow-sm">
+            {mealLabel}
           </span>
         )}
 
-        {/* Titre — Noto Serif, 2 lignes max */}
-        <Link
-          href={`/recipes/${recipe.id}`}
-          className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1"
-        >
-          <h3
-            className={cn(
-              "font-serif font-bold leading-snug text-[#201a19] line-clamp-2 dark:text-neutral-100",
-              variant === "lg" ? "text-xl" : "text-base",
-            )}
-          >
-            {recipe.title}
-          </h3>
-        </Link>
+        {/* Badge temps — overlay haut-droite, fond terracotta */}
+        {time != null && time > 0 && (
+          <span className="absolute right-3 top-3 rounded-full bg-[#E2725B]/90 px-3 py-1.5 text-xs font-semibold text-white shadow-sm">
+            {time} MIN
+          </span>
+        )}
 
-        {/* Rating — étoiles dorées + note */}
-        {recipe.rating_average != null && (
-          <div className="mt-2 flex items-center gap-1.5 text-sm">
-            <Star
-              className="h-3.5 w-3.5 fill-amber-400 text-amber-400"
-              aria-hidden="true"
-            />
-            <span className="font-semibold text-[#201a19]">
-              {Number(recipe.rating_average).toFixed(1)}
+        {/* Rating — overlay bas-gauche, fond semi-transparent avec blur */}
+        {rating != null && (
+          <div className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-sm">
+            <span className="text-amber-400 text-xs leading-none" aria-hidden="true">
+              ★
             </span>
-            <span className="text-[#857370]">/5</span>
-          </div>
-        )}
-
-        {/* Tags régimes alimentaires */}
-        {recipe.dietary_tags.length > 0 && (
-          <div className="mt-2.5 flex flex-wrap gap-1">
-            {recipe.dietary_tags.slice(0, 3).map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full border border-[#857370]/20 bg-[#fff8f6] px-2 py-0.5 text-xs font-medium text-[#857370]"
-              >
-                {formatDietTag(tag)}
+            <span className="text-xs font-semibold text-white">{rating}</span>
+            {recipe.rating_count > 0 && (
+              <span className="text-xs text-white/70">
+                ({recipe.rating_count >= 1000
+                  ? `${(recipe.rating_count / 1000).toFixed(1)}k`
+                  : recipe.rating_count})
               </span>
-            ))}
+            )}
           </div>
-        )}
-
-        {/* Bouton swap */}
-        {onSwap && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              onSwap();
-            }}
-            className="mt-3 w-full rounded-xl border border-[#857370]/30 py-2 text-xs font-medium
-              text-[#857370] transition-all duration-300 hover:border-primary-300 hover:bg-primary-50
-              hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2
-              focus-visible:ring-primary-500"
-          >
-            Remplacer cette recette
-          </button>
         )}
       </div>
-    </MotionDiv>
-  );
-}
 
-function formatDietTag(tag: string): string {
-  const labels: Record<string, string> = {
-    vegetarian: "Végétarien",
-    vegan: "Végétalien",
-    "gluten-free": "Sans gluten",
-    gluten_free: "Sans gluten",
-    "lactose-free": "Sans lactose",
-    lactose_free: "Sans lactose",
-    "no-pork": "Sans porc",
-    no_pork: "Sans porc",
-    "no-seafood": "Sans mer",
-    no_seafood: "Sans mer",
-    "nut-free": "Sans noix",
-    nut_free: "Sans noix",
-    halal: "Halal",
-  };
-  return labels[tag] ?? tag;
+      {/* Catégorie — small caps uppercase terracotta outline */}
+      {recipe.cuisine && (
+        <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-[#857370]">
+          {recipe.cuisine}
+        </p>
+      )}
+
+      {/* Titre — Noto Serif bold, 2 lignes max, hover terracotta */}
+      <h3 className="mt-1 font-serif text-base font-bold leading-snug text-[#201a19] line-clamp-2 group-hover:text-[#E2725B] transition-colors duration-200">
+        {recipe.title}
+      </h3>
+
+      {/* Bouton swap — visible uniquement dans le planning */}
+      {onSwap && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            onSwap();
+          }}
+          className="mt-3 w-full rounded-xl border border-[#857370]/30 py-2 text-xs font-medium
+            text-[#857370] transition-all duration-300 hover:border-[#E2725B]/40 hover:bg-[#E2725B]/5
+            hover:text-[#E2725B] focus-visible:outline-none focus-visible:ring-2
+            focus-visible:ring-[#E2725B]/40"
+        >
+          Remplacer cette recette
+        </button>
+      )}
+    </Link>
+  );
 }

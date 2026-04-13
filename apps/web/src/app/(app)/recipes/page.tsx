@@ -1,6 +1,6 @@
 // apps/web/src/app/(app)/recipes/page.tsx
 // Page "Explorer les recettes" — Server Component avec Client filtres
-// Phase 2 — barre de recherche, filtres avancés, grid de résultats
+// Phase 2 — design food premium : fond cream #fff8f6, header terracotta
 import type { Metadata } from "next";
 import { RecipesExplorer } from "./recipes-explorer";
 
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function RecipesPage() {
   return (
-    <div className="min-h-screen bg-cream-50">
+    <div className="min-h-screen bg-[#fff8f6]">
       <RecipesExplorer />
     </div>
   );

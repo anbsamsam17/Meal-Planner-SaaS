@@ -49,6 +49,16 @@ Claude doit ajouter une entrée à la fin de chaque session significative :
 
 ---
 
+## 2026-04-12 — Refonte design food premium (nextjs-developer)
+
+**Ce qui a bien marché** : Lire le type `Recipe` existant avant d'écrire la nouvelle interface RecipeCard → découvrir que `recipe.image_url`, `recipe.total_time_minutes`, `recipe.rating_average`, `recipe.rating_count` existent déjà, évitant une duplication de type.
+**Décision prise** : Conserver la prop `variant` dans `RecipeCardProps` pour ne pas casser `PlanWeekGrid` qui l'utilise, même si elle n'est plus utilisée dans le rendu (compatibilité descendante sans breaking change).
+**Erreur potentielle évitée** : `DIFFICULTY_LABELS` déclaré mais rendu inutile après la refonte de `StaticRecipeCard` — supprimé proprement avant le typecheck.
+**Règle à retenir** : Toujours vérifier les imports devenus inutilisés après une refonte partielle d'un fichier existant. `pnpm typecheck` ne catch pas toujours les unused imports si `noUnusedLocals` n'est pas activé en strict.
+**À ne pas répéter** : Oublier d'ajouter `images.unsplash.com` dans `next.config.mjs` avant d'utiliser `next/image` avec des URLs Unsplash → erreur runtime `hostname not configured`.
+
+---
+
 ## 2026-04-11 — Initialisation du projet
 
 **Ce qui a bien marché** : Génération automatique de la structure de fichiers via Claude Prompt Optimizer.

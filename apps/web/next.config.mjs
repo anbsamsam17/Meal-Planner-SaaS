@@ -105,6 +105,12 @@ const nextConfig = {
         hostname: "imagedelivery.net",
         pathname: "/**",
       },
+      {
+        // Placeholders food Unsplash (recettes sans photo en dev + prod)
+        protocol: "https",
+        hostname: "images.unsplash.com",
+        pathname: "/**",
+      },
     ],
   },
 

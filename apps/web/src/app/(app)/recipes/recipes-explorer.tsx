@@ -1,9 +1,9 @@
 "use client";
 // apps/web/src/app/(app)/recipes/recipes-explorer.tsx
 // Explorer de recettes avec filtres avancés — Client Component
-// Phase 2 — barre de recherche, filtres latéraux, grid, pagination infinie
+// Phase 2 — barre de recherche arrondie premium, pills filtres, grid portrait 2→3 col
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -15,16 +15,33 @@ import { RecipeFiltersPanel } from "@/components/recipe/recipe-filters";
 
 const DEFAULT_FILTERS: RecipeFilters = { max_time: 60, per_page: 12 };
 
+// Pills de filtres rapides — statiques (enrichissables via feature flag)
+const QUICK_FILTERS = [
+  { label: "Rapide (< 15 min)", key: "quick" },
+  { label: "Végétarien", key: "vegetarian" },
+  { label: "Française", key: "french" },
+  { label: "Asiatique", key: "asian" },
+  { label: "Italien", key: "italian" },
+] as const;
+
+type QuickFilterKey = (typeof QUICK_FILTERS)[number]["key"];
+
 export function RecipesExplorer() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState<RecipeFilters>(DEFAULT_FILTERS);
+  const [activeQuickFilter, setActiveQuickFilter] = useState<QuickFilterKey | null>(null);
 
   const debouncedQuery = useDebounce(searchQuery, 350);
 
-  // Merge de la recherche textuelle dans les filtres
+  // Merge de la recherche textuelle + quick filter dans les filtres
   const activeFilters: RecipeFilters = {
     ...filters,
     q: debouncedQuery || undefined,
+    ...(activeQuickFilter === "quick" && { max_time: 15 }),
+    ...(activeQuickFilter === "vegetarian" && { diet: "vegetarian" }),
+    ...(activeQuickFilter === "french" && { cuisine: "Français" }),
+    ...(activeQuickFilter === "asian" && { cuisine: "Asiatique" }),
+    ...(activeQuickFilter === "italian" && { cuisine: "Italien" }),
     per_page: 12,
   };
 
@@ -47,7 +64,6 @@ export function RecipesExplorer() {
     staleTime: 3 * 60 * 1000, // 3 minutes
   });
 
-  // Utilise `data` — champ défini dans PaginatedResponse<T> (cf. types.ts)
   const allRecipes = data?.pages.flatMap((p) => p.data ?? []) ?? [];
   const totalCount = data?.pages[0]?.total ?? 0;
 
@@ -71,18 +87,33 @@ export function RecipesExplorer() {
     setFilters({ ...newFilters, per_page: 12 });
   }
 
-  return (
-    <div className="mx-auto max-w-6xl bg-[#fff8f6] px-4 py-8">
-      {/* En-tête — Noto Serif */}
-      <h1 className="mb-6 font-serif text-2xl font-bold text-[#201a19]">Explorer les recettes</h1>
+  function handleQuickFilter(key: QuickFilterKey) {
+    setActiveQuickFilter((prev) => (prev === key ? null : key));
+  }
 
-      {/* Barre de recherche premium — rounded-xl, border warm outline/30, focus terracotta */}
-      <div className="mb-6 relative">
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8 md:py-12">
+      {/* =========================================
+          HEADER PREMIUM — sous-titre terracotta + titre Noto Serif
+      ========================================= */}
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#E2725B]">
+        Découvrez de nouvelles saveurs
+      </p>
+      <h1 className="mt-2 font-serif text-3xl font-bold leading-tight text-[#201a19] md:text-4xl">
+        Explorez +50&nbsp;000
+        <br />
+        recettes de chef
+      </h1>
+
+      {/* =========================================
+          BARRE DE RECHERCHE — arrondie full, fond cream chaud
+      ========================================= */}
+      <div className="mt-6 relative">
         <label htmlFor="recipe-search" className="sr-only">
           Rechercher une recette
         </label>
         <Search
-          className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-[#857370]"
+          className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#857370]"
           aria-hidden
         />
         <input
@@ -90,24 +121,56 @@ export function RecipesExplorer() {
           type="search"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Rechercher une recette, un ingrédient..."
-          className="w-full rounded-xl border border-[#857370]/30 bg-white py-3 pl-11 pr-4 text-sm text-[#201a19] placeholder:text-[#857370] shadow-sm focus:border-[#E2725B] focus:outline-none focus:ring-2 focus:ring-[#E2725B]/20 transition-all duration-300"
+          placeholder="Rechercher ingrédients, cuisines..."
+          className="w-full rounded-full border-0 bg-[#E2725B]/5 py-3.5 pl-12 pr-4 text-sm text-[#201a19] placeholder:text-[#857370]/60 focus:outline-none focus:ring-2 focus:ring-[#E2725B]/30 transition-all duration-200"
         />
       </div>
 
-      {/* Layout filtres + résultats */}
-      <div className="flex gap-6">
-        {/* Filtres — sidebar desktop / sheet mobile */}
+      {/* =========================================
+          PILLS FILTRES RAPIDES — scrollable horizontal
+      ========================================= */}
+      <div className="mt-4 flex gap-2 overflow-x-auto hide-scrollbar pb-2">
+        {/* Bouton "Tous les filtres" ouvre le panneau latéral via RecipeFiltersPanel */}
+        <button
+          type="button"
+          onClick={() => setActiveQuickFilter(null)}
+          className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#E2725B] px-4 py-2 text-xs font-medium text-white whitespace-nowrap transition-opacity duration-200 hover:opacity-90"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+          Tous les filtres
+        </button>
+
+        {QUICK_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            onClick={() => handleQuickFilter(f.key)}
+            className={`shrink-0 rounded-full border px-4 py-2 text-xs font-medium whitespace-nowrap transition-colors duration-200 ${
+              activeQuickFilter === f.key
+                ? "border-[#E2725B] bg-[#E2725B] text-white"
+                : "border-[#857370]/20 bg-white text-[#201a19] hover:border-[#E2725B]/40"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* =========================================
+          LAYOUT : filtres avancés (sidebar) + grille résultats
+      ========================================= */}
+      <div className="mt-6 flex gap-6">
+        {/* Filtres avancés — sidebar desktop / sheet mobile */}
         <RecipeFiltersPanel
           filters={filters}
           onChange={handleFiltersChange}
           resultCount={totalCount}
         />
 
-        {/* Résultats */}
+        {/* Zone résultats */}
         <div className="flex-1 min-w-0">
-          {/* Compteur */}
-          <div className="mb-4 flex items-center justify-between gap-4">
+          {/* Compteur résultats */}
+          <div className="mb-4">
             <p className="text-sm text-[#857370]">
               {isLoading ? (
                 "Chargement..."
@@ -122,13 +185,13 @@ export function RecipesExplorer() {
             </p>
           </div>
 
-          {/* Grille de recettes */}
+          {/* Grille de recettes — 2 colonnes mobile, 3 desktop */}
           {isLoading ? (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
-                  className="aspect-[16/10] animate-pulse rounded-2xl bg-[#857370]/10"
+                  className="aspect-[4/5] animate-pulse rounded-2xl bg-[#857370]/10"
                   aria-hidden
                 />
               ))}
@@ -151,16 +214,16 @@ export function RecipesExplorer() {
             </div>
           ) : (
             <>
-              <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" role="list">
-                {allRecipes.map((recipe) => (
+              <ul className="grid grid-cols-2 gap-4 xl:grid-cols-3">
+                {allRecipes.map((recipe, index) => (
                   <li key={recipe.id}>
-                    <RecipeCard recipe={recipe} variant="md" />
+                    <RecipeCard recipe={recipe} priority={index < 4} />
                   </li>
                 ))}
               </ul>
 
               {/* Trigger infinite scroll */}
-              <div ref={loadMoreRef} className="mt-6 flex justify-center">
+              <div ref={loadMoreRef} className="mt-8 flex justify-center">
                 {isFetchingNextPage && (
                   <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#857370]/30 border-t-[#E2725B]" />
                 )}
