@@ -82,10 +82,10 @@ export function useGeneratePlan(setIsGenerating?: (v: boolean) => void) {
       setIsGenerating?.(true);
     },
     onSuccess: async () => {
-      // Vider le cache pour eviter d'afficher l'ancien plan
-      queryClient.setQueryData(PLAN_QUERY_KEYS.current, null);
-      // Refetch le plan courant — le backend a deja cree le nouveau plan
-      await queryClient.refetchQueries({ queryKey: PLAN_QUERY_KEYS.current });
+      // Le backend a cree le nouveau plan (synchrone, 200 OK).
+      // invalidateQueries force un refetch reseau et met a jour le cache
+      // sans creer de fenetre ou planDetail serait null (evite le fallback SSR).
+      await queryClient.invalidateQueries({ queryKey: PLAN_QUERY_KEYS.current });
       setIsGenerating?.(false);
       toast.success("Votre planning est pret !");
     },

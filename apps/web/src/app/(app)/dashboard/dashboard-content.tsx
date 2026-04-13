@@ -37,8 +37,10 @@ export function DashboardContent({ initialPlanData }: DashboardContentProps) {
   // Generation synchrone — apres le 200, on refetch le plan courant
   const generateMutation = useGeneratePlan(setIsGenerating);
 
-  // Utiliser les donnees client si disponibles, sinon les donnees server
-  const currentPlan = planDetail ?? initialPlanData;
+  // planDetail undefined = chargement initial (pas encore en cache) → fallback SSR
+  // planDetail null = cache vide volontairement (apres generate) → PAS de fallback
+  // planDetail PlanDetail = donnee fraiche du client → utiliser
+  const currentPlan = planDetail !== undefined ? planDetail : initialPlanData;
 
   // --- Modal generation ---
   const [showGenerateModal, setShowGenerateModal] = useState(false);
@@ -183,8 +185,9 @@ export function DashboardContent({ initialPlanData }: DashboardContentProps) {
     );
   }
 
-  // Etat "generation en cours" — polling actif, afficher un indicateur
-  if (isGenerating && !currentPlan) {
+  // Etat "generation en cours" — afficher l'indicateur pendant toute la generation
+  // (y compris la regeneration quand un plan existait deja)
+  if (isGenerating) {
     return <GeneratingState />;
   }
 

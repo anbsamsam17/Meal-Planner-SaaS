@@ -78,6 +78,7 @@ async function apiRequest<T>(
 
   const response = await fetch(url, {
     ...options,
+    cache: "no-store" as RequestCache,
     signal: options.signal ?? controller.signal,
     headers: {
       "Content-Type": "application/json",

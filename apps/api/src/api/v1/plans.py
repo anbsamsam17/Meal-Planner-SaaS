@@ -342,7 +342,7 @@ async def get_current_plan(
 
         result = await session.execute(
             text(
-                "SELECT id FROM weekly_plans WHERE household_id = :hid AND week_start = :ws LIMIT 1"
+                "SELECT id FROM weekly_plans WHERE household_id = :hid AND week_start = :ws ORDER BY created_at DESC LIMIT 1"
             ),
             {"hid": str(household_id), "ws": monday},
         )
