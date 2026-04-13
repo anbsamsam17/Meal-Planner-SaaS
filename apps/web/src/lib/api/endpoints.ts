@@ -260,7 +260,7 @@ export async function swapMeal(
   recipeId: string,
 ): Promise<PlannedMeal> {
   return apiClient.patch<PlannedMeal>(`/api/v1/plans/${planId}/meals/${mealId}`, {
-    recipe_id: recipeId,
+    new_recipe_id: recipeId,
   });
 }
 
