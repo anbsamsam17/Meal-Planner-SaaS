@@ -13,15 +13,18 @@ import type { Recipe } from "@/lib/api/types";
 import { RecipeCard } from "@/components/recipe/recipe-card";
 import { RecipeFiltersPanel } from "@/components/recipe/recipe-filters";
 
-const DEFAULT_FILTERS: RecipeFilters = { max_time: 60, per_page: 12 };
+const DEFAULT_FILTERS: RecipeFilters = { per_page: 24 };
 
 // Pills de filtres rapides — statiques (enrichissables via feature flag)
 const QUICK_FILTERS = [
   { label: "Rapide (< 15 min)", key: "quick" },
+  { label: "Desserts", key: "dessert" },
   { label: "Végétarien", key: "vegetarian" },
   { label: "Française", key: "french" },
-  { label: "Asiatique", key: "asian" },
-  { label: "Italien", key: "italian" },
+  { label: "Indienne", key: "indian" },
+  { label: "Japonaise", key: "japanese" },
+  { label: "Italienne", key: "italian" },
+  { label: "Mexicaine", key: "mexican" },
 ] as const;
 
 type QuickFilterKey = (typeof QUICK_FILTERS)[number]["key"];
@@ -38,11 +41,14 @@ export function RecipesExplorer() {
     ...filters,
     q: debouncedQuery || undefined,
     ...(activeQuickFilter === "quick" && { max_time: 15 }),
+    ...(activeQuickFilter === "dessert" && { diet: "dessert" }),
     ...(activeQuickFilter === "vegetarian" && { diet: "vegetarian" }),
-    ...(activeQuickFilter === "french" && { cuisine: "Français" }),
-    ...(activeQuickFilter === "asian" && { cuisine: "Asiatique" }),
-    ...(activeQuickFilter === "italian" && { cuisine: "Italien" }),
-    per_page: 12,
+    ...(activeQuickFilter === "french" && { cuisine: "française" }),
+    ...(activeQuickFilter === "indian" && { cuisine: "indienne" }),
+    ...(activeQuickFilter === "japanese" && { cuisine: "japonaise" }),
+    ...(activeQuickFilter === "italian" && { cuisine: "italienne" }),
+    ...(activeQuickFilter === "mexican" && { cuisine: "mexicaine" }),
+    per_page: 24,
   };
 
   const {
