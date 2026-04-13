@@ -278,28 +278,34 @@ async def get_current_plan(
     """
     from datetime import timedelta
 
-    household_id = await _get_user_household_id(session, user.user_id)
+    try:
+        household_id = await _get_user_household_id(session, user.user_id)
 
-    # Calcul du lundi de la semaine courante
-    today = date.today()
-    monday = today - timedelta(days=today.weekday())
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
 
-    result = await session.execute(
-        text(
-            """
-            SELECT id FROM weekly_plans
-            WHERE household_id = :household_id AND week_start = :week_start
-            LIMIT 1
-            """
-        ),
-        {"household_id": str(household_id), "week_start": monday.isoformat()},
-    )
-    row = result.fetchone()
+        logger.info("get_current_plan_query", household_id=str(household_id), monday=str(monday))
 
-    if row is None:
-        return None
+        result = await session.execute(
+            text(
+                "SELECT id FROM weekly_plans WHERE household_id = :hid AND week_start = :ws LIMIT 1"
+            ),
+            {"hid": str(household_id), "ws": str(monday)},
+        )
+        row = result.fetchone()
 
-    return await _get_plan_detail(session, row[0])
+        if row is None:
+            return None
+
+        plan_id = row[0]
+        logger.info("get_current_plan_found", plan_id=str(plan_id))
+        return await _get_plan_detail(session, plan_id)
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("get_current_plan_error", error=str(exc), error_type=type(exc).__name__)
+        raise HTTPException(500, f"Erreur: {type(exc).__name__}: {str(exc)[:200]}")
 
 
 # ---- GET /plans/me/{plan_id}/shopping-list ----
