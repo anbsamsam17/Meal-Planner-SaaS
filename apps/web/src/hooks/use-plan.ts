@@ -13,6 +13,7 @@ import {
   generatePlan,
   swapMeal,
   validatePlan,
+  revertPlanToDraft,
   getRecipeSuggestions,
   addMealToPlan,
 } from "@/lib/api/endpoints";
@@ -221,6 +222,24 @@ export function useValidatePlan() {
     },
     onError: (err: Error) => {
       toast.error("Validation impossible", { description: err.message });
+    },
+  });
+}
+
+// Mutation — Repasser en draft (POST /api/v1/plans/{id}/revert-to-draft)
+export function useRevertToDraft() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: revertPlanToDraft,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: PLAN_QUERY_KEYS.current });
+      toast.success("Plan remis en brouillon.", {
+        description: "Vous pouvez maintenant modifier ou regenerer.",
+      });
+    },
+    onError: (err: Error) => {
+      toast.error("Impossible de modifier le plan", { description: err.message });
     },
   });
 }

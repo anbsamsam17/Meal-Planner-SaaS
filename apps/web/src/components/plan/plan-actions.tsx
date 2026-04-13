@@ -18,7 +18,10 @@ interface PlanActionsProps {
   planStatus: "draft" | "validated" | "archived";
   /** Ouvre le modal de generation avec les 4 questions */
   onRegenerate?: () => void;
+  /** Remet le plan en draft puis ouvre le modal */
+  onRevertToDraft?: () => void;
   isRegenerating?: boolean;
+  isReverting?: boolean;
   className?: string;
 }
 
@@ -26,7 +29,9 @@ export function PlanActions({
   planId,
   planStatus,
   onRegenerate,
+  onRevertToDraft,
   isRegenerating = false,
+  isReverting = false,
   className,
 }: PlanActionsProps) {
   const validateMutation = useValidatePlan();
@@ -93,16 +98,23 @@ export function PlanActions({
             Plan validé
           </div>
 
-          {/* Modifier mon plan — remet en draft */}
-          {onRegenerate && (
+          {/* Modifier mon plan — revert validated → draft */}
+          {onRevertToDraft && (
             <button
               type="button"
-              onClick={onRegenerate}
+              onClick={onRevertToDraft}
+              disabled={isReverting}
+              aria-busy={isReverting}
               className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-4 py-3
                 text-sm font-medium text-[#857370] transition-colors hover:bg-[#857370]/10
-                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2725B]"
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2725B]
+                disabled:opacity-50"
             >
-              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              {isReverting ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              )}
               Modifier mon plan
             </button>
           )}

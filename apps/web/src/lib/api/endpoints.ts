@@ -254,6 +254,14 @@ export async function validatePlan(planId: string): Promise<void> {
   return apiClient.post<void>(`/api/v1/plans/${planId}/validate`, {});
 }
 
+export async function revertPlanToDraft(planId: string): Promise<PlanDetail> {
+  const raw = await apiClient.post<Record<string, unknown>>(
+    `/api/v1/plans/${planId}/revert-to-draft`,
+    {},
+  );
+  return normalizePlanDetail(raw);
+}
+
 export async function swapMeal(
   planId: string,
   mealId: string,

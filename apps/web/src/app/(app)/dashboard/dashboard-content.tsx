@@ -17,6 +17,7 @@ import {
   useGeneratePlan,
   useSwapMeal,
   useAddMeal,
+  useRevertToDraft,
 } from "@/hooks/use-plan";
 import { PlanWeekGrid } from "@/components/plan/plan-week-grid";
 import { PlanActions } from "@/components/plan/plan-actions";
@@ -54,9 +55,10 @@ export function DashboardContent({ initialPlanData }: DashboardContentProps) {
     dayOfWeek: number | null;
   }>({ open: false, dayOfWeek: null });
 
-  // Mutations swap et add
+  // Mutations swap, add, revert
   const swapMealMutation = useSwapMeal(currentPlan?.id ?? "");
   const addMealMutation = useAddMeal(currentPlan?.id ?? "");
+  const revertMutation = useRevertToDraft();
 
   // Ref pour eviter les retries multiples simultanes
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -67,6 +69,12 @@ export function DashboardContent({ initialPlanData }: DashboardContentProps) {
   const openGenerateModal = useCallback(() => {
     setShowGenerateModal(true);
   }, []);
+
+  // Repasser le plan en draft (validated → draft) puis permettre les modifications
+  const handleRevertToDraft = useCallback(() => {
+    if (!currentPlan) return;
+    revertMutation.mutate(currentPlan.id);
+  }, [currentPlan, revertMutation]);
 
   // Generer avec filtres depuis le modal
   const handleGenerateWithFilters = useCallback(
@@ -214,7 +222,9 @@ export function DashboardContent({ initialPlanData }: DashboardContentProps) {
         planId={currentPlan.id}
         planStatus={currentPlan.status}
         onRegenerate={openGenerateModal}
+        onRevertToDraft={handleRevertToDraft}
         isRegenerating={generateMutation.isPending}
+        isReverting={revertMutation.isPending}
       />
 
       {/* Modal de regeneration (meme modal que la premiere generation) */}

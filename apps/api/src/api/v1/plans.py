@@ -664,6 +664,93 @@ async def validate_plan(
     return WeeklyPlanRead.model_validate(dict(updated))
 
 
+# ---- POST /plans/{plan_id}/revert-to-draft ----
+
+
+@router.post(
+    "/{plan_id}/revert-to-draft",
+    summary="Repasser un plan en brouillon",
+    description=(
+        "Remet un plan validé en statut 'draft' pour permettre les modifications. "
+        "Le bouton 'Modifier mon plan' du frontend appelle cet endpoint. "
+        f"Rate limit : {LIMIT_USER_WRITE}."
+    ),
+    response_model=WeeklyPlanRead,
+    responses={
+        status.HTTP_409_CONFLICT: {"description": "Le plan est déjà en brouillon."},
+        status.HTTP_403_FORBIDDEN: {"description": "Ce plan n'appartient pas à votre foyer."},
+    },
+)
+@limiter.limit(LIMIT_USER_WRITE, key_func=get_user_key)
+async def revert_plan_to_draft(
+    request: Request,
+    plan_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    user: TokenPayload = Depends(get_current_user_dep),
+) -> Any:
+    """
+    Remet un plan validé en statut draft pour permettre les modifications.
+
+    Transitions : validated → draft (reset validated_at).
+    Appelé par le bouton "Modifier mon plan" du frontend.
+    """
+    household_id = await _get_user_household_id(session, user.user_id)
+
+    plan_result = await session.execute(
+        text("SELECT id, household_id, status FROM weekly_plans WHERE id = :plan_id"),
+        {"plan_id": str(plan_id)},
+    )
+    plan_row = plan_result.mappings().one_or_none()
+
+    if plan_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Plan {plan_id} introuvable.",
+        )
+
+    if str(plan_row["household_id"]) != str(household_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Ce plan n'appartient pas à votre foyer.",
+        )
+
+    if plan_row["status"] == "draft":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ce plan est déjà en brouillon.",
+        )
+
+    result = await session.execute(
+        text(
+            """
+            UPDATE weekly_plans
+            SET status = 'draft', validated_at = NULL, updated_at = NOW()
+            WHERE id = :plan_id AND status = 'validated'
+            RETURNING id, household_id, week_start, status, validated_at, created_at, updated_at
+            """
+        ),
+        {"plan_id": str(plan_id)},
+    )
+    updated = result.mappings().one_or_none()
+
+    if updated is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Statut modifié en parallèle.",
+        )
+
+    await session.commit()
+
+    logger.info(
+        "plan_reverted_to_draft",
+        plan_id=str(plan_id),
+        household_id=str(household_id),
+        by_user=user.user_id,
+    )
+
+    return WeeklyPlanRead.model_validate(dict(updated))
+
+
 # ---- PATCH /plans/{plan_id}/meals/{meal_id} ----
 
 # FIX Phase 1 mature (review 2026-04-12) — BUG #1 : rate limit écriture 30/min par user
