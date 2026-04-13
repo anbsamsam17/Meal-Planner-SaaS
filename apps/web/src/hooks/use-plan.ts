@@ -5,7 +5,7 @@
 // Refonte dashboard (2026-04-12) : filtres generation, suggestions, ajout repas samedi/dimanche
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getCurrentPlan,
@@ -17,7 +17,7 @@ import {
   getRecipeSuggestions,
   addMealToPlan,
 } from "@/lib/api/endpoints";
-import type { PlanDetail, GeneratePlanParams, GeneratePlanResponse } from "@/lib/api/endpoints";
+import type { PlanDetail, GeneratePlanParams } from "@/lib/api/endpoints";
 import type { Recipe } from "@/lib/api/types";
 import { toast } from "sonner";
 
@@ -29,20 +29,11 @@ export const PLAN_QUERY_KEYS = {
     ["plans", planId, "suggestions", filters] as const,
 };
 
-// Timeout max pour le polling (60 secondes)
-const POLLING_INTERVAL_MS = 3_000;
-const POLLING_TIMEOUT_MS = 60_000;
-
 // Hook — Plan courant (GET /api/v1/plans/me/current)
-// FIX BLOQUANT 2 : polling conditionnel toutes les 3s pendant la generation, timeout 60s
+// La generation est SYNCHRONE (200 OK) — pas besoin de polling.
+// Apres generate, on fait un simple refetch pour recuperer le nouveau plan.
 export function useCurrentPlan() {
   const [isGenerating, setIsGenerating] = useState(false);
-  const pollingStartRef = useRef<number>(0);
-  // Memorise l'ID du plan existant au moment ou startPolling() est appele.
-  // Permet de detecter que le polling a bien recupere un NOUVEAU plan
-  // et non l'ancien plan encore en cache (bug : polling stoppait immediatement
-  // car query.data contenait toujours l'ancien plan draft apres revert-to-draft).
-  const previousPlanIdRef = useRef<string | null>(null);
 
   const query = useQuery<PlanDetail | null, Error>({
     queryKey: PLAN_QUERY_KEYS.current,
@@ -50,59 +41,20 @@ export function useCurrentPlan() {
       try {
         return await getCurrentPlan();
       } catch (err) {
-        // 404 = pas de plan pour la semaine → etat valide, retourner null
         if (err instanceof Error && err.message.includes("404")) {
           return null;
         }
         throw err;
       }
     },
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    // Polling toutes les 3s UNIQUEMENT pendant la generation
-    refetchInterval: isGenerating ? POLLING_INTERVAL_MS : false,
-    // Continuer le polling meme si l'onglet est en arriere-plan
-    refetchIntervalInBackground: isGenerating,
+    staleTime: 2 * 60 * 1000,
     retry: (failureCount, err) => {
       if (err.message.includes("401") || err.message.includes("403")) return false;
       return failureCount < 2;
     },
   });
 
-  // Arreter le polling quand un NOUVEAU plan est trouve OU timeout depasse.
-  // IMPORTANT : on compare l'ID du plan courant avec l'ID memorise avant la generation.
-  // Sans cette comparaison, l'ancien plan encore en cache stopperait le polling
-  // immediatement, avant que le refetch ne rapporte le nouveau plan.
-  useEffect(() => {
-    if (!isGenerating) return;
-
-    // Plan trouve ET c'est un plan different de l'ancien → succes
-    if (query.data && query.data.id !== previousPlanIdRef.current) {
-      setIsGenerating(false);
-      toast.success("Votre planning est pret !");
-      return;
-    }
-
-    // Timeout : arreter le polling apres 60s
-    const elapsed = Date.now() - pollingStartRef.current;
-    if (elapsed > POLLING_TIMEOUT_MS) {
-      setIsGenerating(false);
-      toast.error("La generation prend plus de temps que prevu.", {
-        description: "Rafraichissez la page dans quelques instants.",
-      });
-    }
-  }, [query.data, isGenerating]);
-
-  // Demarrer le polling (appele depuis useGeneratePlan).
-  // Capture l'ID du plan actuel pour que le useEffect puisse distinguer
-  // l'ancien plan (cache stale) du nouveau plan (apres refetch).
-  // Memoize avec useCallback pour eviter des re-rendus inutiles des composants consumers.
-  const startPolling = useCallback((currentPlanId?: string | null) => {
-    previousPlanIdRef.current = currentPlanId ?? null;
-    pollingStartRef.current = Date.now();
-    setIsGenerating(true);
-  }, []);
-
-  return { ...query, isGenerating, startPolling };
+  return { ...query, isGenerating, setIsGenerating };
 }
 
 // Hook — Plan par ID (GET /api/v1/plans/{id})
@@ -119,51 +71,26 @@ export function usePlan(id: string | null) {
 }
 
 // Mutation — Generer un nouveau plan (POST /api/v1/plans/generate)
-// FIX BLOQUANT 2 : apres le 200, on declenche le polling via startPolling()
-// Le toast de succes est affiche par useCurrentPlan quand le nouveau plan arrive.
-// Refonte : accepte les filtres max_time, budget, style depuis le modal "4 questions"
-// FIX (2026-04-13) : startPolling recoit l'ID de l'ancien plan pour eviter
-// que le polling stoppe immediatement sur le plan stale encore en cache.
-export function useGeneratePlan(startPolling?: (currentPlanId?: string | null) => void) {
+// La generation backend est SYNCHRONE (200 OK) — pas de Celery.
+// Apres succes, on vide le cache et refetch pour afficher le nouveau plan.
+export function useGeneratePlan(setIsGenerating?: (v: boolean) => void) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (params?: GeneratePlanParams) => generatePlan(params),
-    onSuccess: (data: GeneratePlanResponse, _variables, _context) => {
-      // Cas 1 : le backend a retourne le plan directement dans la reponse (generation synchrone).
-      // Le champ "id" sur la reponse indique que c'est un PlanDetail complet, pas un { task_id }.
-      // On injecte directement dans le cache — pas besoin de polling.
-      const responseAsAny = data as unknown as Record<string, unknown>;
-      if (responseAsAny && typeof responseAsAny === "object" && "id" in responseAsAny && !("task_id" in responseAsAny)) {
-        queryClient.setQueryData<PlanDetail>(PLAN_QUERY_KEYS.current, responseAsAny as unknown as PlanDetail);
-        toast.success("Votre planning est pret !");
-        return;
-      }
-
-      // Cas 2 : generation asynchrone (Celery) — le backend a retourne { task_id }.
-      // Recuperer l'ID du plan actuellement en cache AVANT d'invalider.
-      // On passe cet ID a startPolling pour que le useEffect de useCurrentPlan
-      // sache qu'il doit attendre un plan DIFFERENT (et non s'arreter sur le stale cache).
-      const cachedPlan = queryClient.getQueryData<PlanDetail | null>(PLAN_QUERY_KEYS.current);
-      const previousId = cachedPlan?.id ?? null;
-
-      // Invalider le cache puis demarrer le polling.
-      // On attend la resolution de invalidateQueries avant de demarrer le polling
-      // pour eviter que le premier refetch parte sans l'intervalle de polling actif.
-      queryClient.invalidateQueries({ queryKey: PLAN_QUERY_KEYS.current }).then(() => {
-        startPolling?.(previousId);
-      }).catch(() => {
-        // En cas d'echec de l'invalidation, demarrer quand meme le polling
-        startPolling?.(previousId);
-      });
-
-      toast.info("Generation en cours...", {
-        description: "Votre planning sera pret dans quelques secondes.",
-      });
+    onMutate: () => {
+      setIsGenerating?.(true);
+    },
+    onSuccess: async () => {
+      // Vider le cache pour eviter d'afficher l'ancien plan
+      queryClient.setQueryData(PLAN_QUERY_KEYS.current, null);
+      // Refetch le plan courant — le backend a deja cree le nouveau plan
+      await queryClient.refetchQueries({ queryKey: PLAN_QUERY_KEYS.current });
+      setIsGenerating?.(false);
+      toast.success("Votre planning est pret !");
     },
     onError: (err: Error) => {
-      // Le client API affiche deja un toast pour les erreurs HTTP
-      // Afficher seulement les erreurs non-HTTP
+      setIsGenerating?.(false);
       if (!err.message.includes("Erreur API")) {
         toast.error("Generation impossible", {
           description: err.message,

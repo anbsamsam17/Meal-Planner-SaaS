@@ -33,9 +33,9 @@ interface DashboardContentProps {
 
 export function DashboardContent({ initialPlanData }: DashboardContentProps) {
   // TanStack Query prend le relais cote client, initialPlanData sert de placeholder
-  const { data: planDetail, isLoading, isGenerating, startPolling } = useCurrentPlan();
-  // FIX BLOQUANT 2 : passer startPolling pour declencher le polling apres le 202
-  const generateMutation = useGeneratePlan(startPolling);
+  const { data: planDetail, isLoading, isGenerating, setIsGenerating } = useCurrentPlan();
+  // Generation synchrone — apres le 200, on refetch le plan courant
+  const generateMutation = useGeneratePlan(setIsGenerating);
 
   // Utiliser les donnees client si disponibles, sinon les donnees server
   const currentPlan = planDetail ?? initialPlanData;
