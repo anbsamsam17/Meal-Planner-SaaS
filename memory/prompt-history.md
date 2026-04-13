@@ -14,6 +14,19 @@ links:
 > Historique des prompts optimisés utilisés sur ce projet.
 > Ajoute tes nouveaux prompts en haut du fichier (ordre anti-chronologique).
 
+## 2026-04-12 — Fix 4 bugs page recettes frontend (nextjs-developer)
+
+**Agent** : nextjs-developer
+**Scope** : `apps/web/src/app/(app)/recipes/[id]/page.tsx`, `recipes-explorer.tsx`, `recipe-tabs-client.tsx`
+**Résultat** :
+- BUG 1 : Normalisation ingrédients dans `fetchRecipe()` — mapping `ingredient_id→id`, `canonical_name→name`, `notes→note`, `category: "other"`. Les ingrédients s'affichent désormais dans `IngredientList`.
+- BUG 2 : `getNextPageParam` recalculé depuis `totalLoaded < total` (sans `has_next`). Bouton "Voir plus de recettes" ajouté comme fallback IntersectionObserver. `handleFiltersChange` corrigé : `per_page: 24` au lieu de 12.
+- BUG 3 : `per_page` incohérent corrigé dans `handleFiltersChange`. Les filtres du panneau latéral relancent bien la query. CUISINE_OPTIONS déjà conformes.
+- BUG 4 : Onglet Nutrition affiche une bannière "Informations nutritionnelles bientôt disponibles" au lieu d'un bloc vide.
+- `pnpm typecheck` : 0 erreur.
+
+---
+
 ## 2026-04-12 — Fix 3 bugs prod + photo_url 75 recettes (backend-developer)
 
 **Agent** : backend-developer

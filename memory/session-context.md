@@ -16,6 +16,21 @@ links:
 
 ---
 
+## Session du : 2026-04-12 — Fix 4 bugs page recettes (nextjs-developer)
+
+**Scope** : `apps/web/src/**`
+**Statut** : Terminé — 4 fichiers modifiés, `pnpm typecheck` OK (0 erreur)
+
+**BUG 1 — Ingrédients non affichés** : L'API retourne `{ingredient_id, canonical_name, quantity, unit, notes, position}` mais `IngredientList` attend `{id, name, unit, note, category}`. Fix : normalisation dans `fetchRecipe()` dans `page.tsx` — mapping `ingredient_id→id`, `canonical_name→name`, `notes→note`, `category: "other"`.
+
+**BUG 2 — Pagination manquante** : `getNextPageParam` utilisait `lastPage.has_next` absent de la réponse API. Fix : calcul `totalLoaded < total` sur les pages accumulées. Ajout d'un bouton "Voir plus de recettes" en fallback de l'IntersectionObserver. Fix secondaire : `handleFiltersChange` passait `per_page: 12` au lieu de 24.
+
+**BUG 3 — Filtres latéraux** : `handleFiltersChange` écrasait `per_page` à 12 ce qui divergeait d'`activeFilters` (24). Les CUISINE_OPTIONS étaient déjà correctes. Fix : `per_page: 24` cohérent.
+
+**BUG 4 — Onglet Nutrition vide** : Message amélioré en bannière centrée "Informations nutritionnelles bientôt disponibles" avec sous-titre explicatif.
+
+---
+
 ## Session du : 2026-04-12 — Fix crash page /recipes/[id] (nextjs-developer)
 
 **Scope** : `apps/web/src/**`

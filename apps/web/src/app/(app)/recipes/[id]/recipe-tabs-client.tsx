@@ -125,9 +125,14 @@ export function RecipeTabsClient({ recipe }: RecipeTabsClientProps) {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-neutral-400 dark:text-neutral-500">
-              Les informations nutritionnelles ne sont pas disponibles pour cette recette.
-            </p>
+            <div className="rounded-xl border border-neutral-100 bg-neutral-50 p-6 text-center dark:border-neutral-800 dark:bg-neutral-800/50">
+              <p className="text-sm font-medium text-neutral-600 dark:text-neutral-300">
+                Informations nutritionnelles bientôt disponibles
+              </p>
+              <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+                Nous travaillons à enrichir nos recettes avec des données nutritionnelles précises.
+              </p>
+            </div>
           )}
         </RadixTabs.Content>
       </RadixTabs.Root>

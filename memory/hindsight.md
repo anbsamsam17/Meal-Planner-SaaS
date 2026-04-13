@@ -81,6 +81,20 @@ Claude doit ajouter une entrée à la fin de chaque session significative :
 
 ---
 
+## 2026-04-12 — Mismatch format ingrédients API brut vs type Ingredient frontend
+
+**Erreur commise** : `IngredientList` attendait `{id, name, unit, note, category}` mais l'API catalogue retourne `{ingredient_id, canonical_name, unit, notes, position}`. Le composant tombait sur la branche vide (0 ingrédients) sans aucune erreur visible.
+**Règle à retenir** : Toujours normaliser les données API dans la couche `fetchXxx()` côté serveur (Server Component) avant de les passer aux composants. Ne jamais adapter les composants UI au format brut de l'API — adapter dans la couche fetch.
+**Comment l'éviter** : Lire le schéma Pydantic du backend (`RecipeIngredientOut`) avant d'écrire le type `Ingredient` TypeScript. Vérifier que chaque champ TS a un champ API correspondant.
+
+## 2026-04-12 — has_next absent de la réponse API pagination recettes
+
+**Erreur commise** : `getNextPageParam` utilisait `lastPage.has_next` qui n'existe pas dans la réponse `{results, total, page, per_page}` — `hasNextPage` était toujours `false`, infinite scroll jamais déclenché.
+**Règle à retenir** : Toujours dériver `hasNextPage` depuis `totalLoaded < total` quand l'API ne retourne pas `has_next`. Ne jamais présupposer le format de pagination — le vérifier dans la réponse réseau réelle.
+**Comment l'éviter** : Ajouter un bouton "Voir plus" visible en fallback de l'IntersectionObserver — permet de détecter visuellement si la pagination ne fonctionne pas.
+
+---
+
 ## 2026-04-11 — Initialisation du projet
 
 **Ce qui a bien marché** : Génération automatique de la structure de fichiers via Claude Prompt Optimizer.

@@ -65,7 +65,12 @@ export function RecipesExplorer() {
       searchRecipesAdvanced({ ...activeFilters, page: pageParam as number }),
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => {
-      if (lastPage.has_next) return allPages.length + 1;
+      // L'API retourne { results, total } sans has_next — on calcule depuis le total
+      const totalLoaded = allPages.reduce(
+        (sum, p) => sum + ((p as any).results?.length ?? (p as any).data?.length ?? 0),
+        0,
+      );
+      if (totalLoaded < (lastPage.total ?? 0)) return allPages.length + 1;
       return undefined;
     },
     staleTime: 3 * 60 * 1000, // 3 minutes
@@ -91,7 +96,8 @@ export function RecipesExplorer() {
   );
 
   function handleFiltersChange(newFilters: RecipeFilters) {
-    setFilters({ ...newFilters, per_page: 12 });
+    // Conserver per_page: 24 — le 12 cassait la cohérence avec activeFilters
+    setFilters({ ...newFilters, per_page: 24 });
   }
 
   function handleQuickFilter(key: QuickFilterKey) {
@@ -229,10 +235,20 @@ export function RecipesExplorer() {
                 ))}
               </ul>
 
-              {/* Trigger infinite scroll */}
-              <div ref={loadMoreRef} className="mt-8 flex justify-center">
+              {/* Trigger infinite scroll — div observée par IntersectionObserver */}
+              <div ref={loadMoreRef} className="mt-8 flex flex-col items-center gap-4">
                 {isFetchingNextPage && (
                   <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#857370]/30 border-t-[#E2725B]" />
+                )}
+                {/* Bouton fallback visible si l'observer ne se déclenche pas */}
+                {hasNextPage && !isFetchingNextPage && (
+                  <button
+                    type="button"
+                    onClick={() => void fetchNextPage()}
+                    className="mx-auto block rounded-full bg-[#E2725B] px-6 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2725B] focus-visible:ring-offset-2"
+                  >
+                    Voir plus de recettes
+                  </button>
                 )}
               </div>
             </>

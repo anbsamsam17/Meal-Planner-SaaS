@@ -61,9 +61,24 @@ async function fetchRecipe(id: string) {
 
     // Garantir que les tableaux sont bien des tableaux (jamais null/undefined)
     if (data) {
-      data.ingredients = Array.isArray(data.ingredients) ? data.ingredients : [];
       data.instructions = Array.isArray(data.instructions) ? data.instructions : [];
       data.dietary_tags = Array.isArray(data.dietary_tags) ? data.dietary_tags : [];
+
+      // Normalisation des ingrédients : l'API retourne le format brut du catalogue
+      // { ingredient_id, canonical_name, quantity, unit, notes, position }
+      // alors que le type Ingredient frontend attend
+      // { id, name, quantity, unit, note, category }
+      const rawIngredients = Array.isArray(data.ingredients) ? data.ingredients : [];
+      data.ingredients = rawIngredients.map((ing: Record<string, unknown>) => ({
+        id: (ing.ingredient_id as string | undefined) ?? String(ing.position ?? Math.random()),
+        name: (ing.canonical_name as string | undefined) ?? "",
+        quantity: typeof ing.quantity === "number" ? ing.quantity : 1,
+        unit: typeof ing.unit === "string" ? ing.unit : "",
+        // Afficher notes en priorité (plus descriptif), sinon canonical_name
+        note: (ing.notes as string | undefined) ?? null,
+        category: "other" as const,
+        open_food_facts_id: null,
+      }));
     }
 
     return data;
