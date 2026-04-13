@@ -501,6 +501,24 @@ export async function createPortal(): Promise<PortalResponse> {
 }
 
 // ============================================================
+// Catalogue ingrédients — recherche fuzzy
+// ============================================================
+
+export interface IngredientSearchResult {
+  id: string;
+  name: string;
+  category: string | null;
+  unit_default: string | null;
+}
+
+export async function searchIngredients(q: string, limit = 10): Promise<IngredientSearchResult[]> {
+  if (q.trim().length < 2) return [];
+  return apiClient.get<IngredientSearchResult[]>(
+    `/api/v1/ingredients/search?q=${encodeURIComponent(q.trim())}&limit=${limit}`
+  );
+}
+
+// ============================================================
 // PHASE 2 — Mode Frigo
 // ============================================================
 

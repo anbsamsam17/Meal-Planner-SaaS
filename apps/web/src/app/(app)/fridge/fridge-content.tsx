@@ -1,20 +1,31 @@
 "use client";
 // apps/web/src/app/(app)/fridge/fridge-content.tsx
 // Contenu interactif du frigo — Client Component
-// Phase 2 — liste items, dialog ajout, suggestions recettes
+// Phase 2 — liste items, dialog ajout avec autocomplete, suggestions recettes
 
-import { useState } from "react";
-import { Plus, Refrigerator, Sparkles, X } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Plus, Refrigerator, Sparkles, X, Search } from "lucide-react";
 import { useFridge, useAddFridgeItem, useRemoveFridgeItem, useFridgeSuggestions } from "@/hooks/use-fridge";
 import { FridgeItemCard } from "@/components/fridge/fridge-item";
 import { RecipeCard } from "@/components/recipe/recipe-card";
+import { searchIngredients, type IngredientSearchResult } from "@/lib/api/endpoints";
 import type { FridgeItemCreate, FridgeItemUnit } from "@/lib/api/types";
 
 const UNITS: FridgeItemUnit[] = [
   "g", "kg", "ml", "L", "pièce", "tranche", "botte", "sachet", "boîte", "pot", "autre",
 ];
 
-// Dialog simple d'ajout d'un produit (pas de librairie UI pour rester léger)
+// Hook debounce pour la recherche autocomplete
+function useDebounce<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(timer);
+  }, [value, delayMs]);
+  return debounced;
+}
+
+// Dialog simple d'ajout d'un produit avec autocomplete ingrédients
 interface AddItemDialogProps {
   open: boolean;
   onClose: () => void;
@@ -24,23 +35,100 @@ interface AddItemDialogProps {
 
 function AddItemDialog({ open, onClose, onSubmit, isSubmitting }: AddItemDialogProps) {
   const [name, setName] = useState("");
+  const [selectedIngredient, setSelectedIngredient] = useState<IngredientSearchResult | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [unit, setUnit] = useState<FridgeItemUnit>("pièce");
   const [expiry, setExpiry] = useState("");
+
+  // Autocomplete state
+  const [suggestions, setSuggestions] = useState<IngredientSearchResult[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(-1);
+  const debouncedQuery = useDebounce(name, 300);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+
+  // Recherche autocomplete quand le texte change
+  useEffect(() => {
+    if (selectedIngredient) return; // Ne pas chercher si un ingrédient est sélectionné
+    if (debouncedQuery.trim().length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsSearching(true);
+    searchIngredients(debouncedQuery, 8)
+      .then((results) => {
+        if (!cancelled) {
+          setSuggestions(results);
+          setShowSuggestions(results.length > 0);
+          setHighlightIndex(-1);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSuggestions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsSearching(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [debouncedQuery, selectedIngredient]);
+
+  const selectIngredient = useCallback((ingredient: IngredientSearchResult) => {
+    setSelectedIngredient(ingredient);
+    setName(ingredient.name);
+    setShowSuggestions(false);
+    // Auto-remplir l'unité par défaut de l'ingrédient
+    if (ingredient.unit_default) {
+      const mappedUnit = ingredient.unit_default as FridgeItemUnit;
+      if (UNITS.includes(mappedUnit)) setUnit(mappedUnit);
+    }
+  }, []);
+
+  function handleNameChange(value: string) {
+    setName(value);
+    // Réinitialiser la sélection si l'utilisateur modifie le texte
+    if (selectedIngredient && value !== selectedIngredient.name) {
+      setSelectedIngredient(null);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (!showSuggestions || suggestions.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightIndex((prev) => Math.min(prev + 1, suggestions.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === "Enter" && highlightIndex >= 0 && suggestions[highlightIndex]) {
+      e.preventDefault();
+      selectIngredient(suggestions[highlightIndex]);
+    } else if (e.key === "Escape") {
+      setShowSuggestions(false);
+    }
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
     onSubmit({
+      ingredient_id: selectedIngredient?.id ?? null,
       ingredient_name: name.trim(),
       quantity,
       unit,
       expiry_date: expiry || null,
     });
     setName("");
+    setSelectedIngredient(null);
     setQuantity(1);
     setUnit("pièce");
     setExpiry("");
+    setSuggestions([]);
   }
 
   if (!open) return null;
@@ -70,20 +158,76 @@ function AddItemDialog({ open, onClose, onSubmit, isSubmitting }: AddItemDialogP
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Nom ingrédient */}
-          <div>
+          {/* Nom ingrédient avec autocomplete */}
+          <div className="relative">
             <label htmlFor="ingredient-name" className="mb-1 block text-sm font-medium text-neutral-700">
               Nom du produit <span aria-hidden>*</span>
             </label>
-            <input
-              id="ingredient-name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ex : tomates cerises, poulet..."
-              required
-              className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-sm text-neutral-900 placeholder-neutral-400 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
-            />
+            <div className="relative">
+              <input
+                ref={inputRef}
+                id="ingredient-name"
+                type="text"
+                role="combobox"
+                aria-expanded={showSuggestions}
+                aria-autocomplete="list"
+                aria-controls="ingredient-suggestions"
+                aria-activedescendant={highlightIndex >= 0 ? `suggestion-${highlightIndex}` : undefined}
+                value={name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onFocus={() => { if (suggestions.length > 0 && !selectedIngredient) setShowSuggestions(true); }}
+                placeholder="Tapez pour chercher : tomate, poulet, riz..."
+                required
+                autoComplete="off"
+                className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 pr-9 text-sm text-neutral-900 placeholder-neutral-400 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
+              />
+              {isSearching ? (
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-300 border-t-primary-500" />
+                </div>
+              ) : (
+                <Search className="absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" aria-hidden />
+              )}
+            </div>
+
+            {/* Dropdown suggestions */}
+            {showSuggestions && suggestions.length > 0 && (
+              <ul
+                ref={listRef}
+                id="ingredient-suggestions"
+                role="listbox"
+                className="absolute left-0 right-0 z-10 mt-1 max-h-48 overflow-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+              >
+                {suggestions.map((s, i) => (
+                  <li
+                    key={s.id}
+                    id={`suggestion-${i}`}
+                    role="option"
+                    aria-selected={i === highlightIndex}
+                    className={`cursor-pointer px-3 py-2 text-sm transition-colors ${
+                      i === highlightIndex
+                        ? "bg-primary-50 text-primary-700"
+                        : "text-neutral-700 hover:bg-neutral-50"
+                    }`}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => selectIngredient(s)}
+                  >
+                    <span className="font-medium">{s.name}</span>
+                    {s.category && (
+                      <span className="ml-2 text-xs text-neutral-400">{s.category}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* Badge sélection */}
+            {selectedIngredient && (
+              <p className="mt-1 text-xs text-green-600">
+                Sélectionné : {selectedIngredient.name}
+              </p>
+            )}
           </div>
 
           {/* Quantité + unité */}

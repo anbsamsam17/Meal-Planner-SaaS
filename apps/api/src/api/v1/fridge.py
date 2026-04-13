@@ -104,11 +104,11 @@ class FridgeItemRead(BaseModel):
     id: UUID
     household_id: UUID
     ingredient_id: UUID
-    canonical_name: str
+    ingredient_name: str
     quantity: float | None
     unit: str | None
     expiry_date: date | None
-    added_at: str | None
+    created_at: str | None
     days_until_expiry: int | None = None
 
     model_config = {"from_attributes": True}
@@ -159,11 +159,11 @@ async def list_fridge_items(
                 fi.id,
                 fi.household_id,
                 fi.ingredient_id,
-                i.canonical_name,
+                i.canonical_name AS ingredient_name,
                 fi.quantity,
                 fi.unit,
                 fi.expiry_date,
-                fi.added_at::text,
+                fi.added_at::text AS created_at,
                 CASE
                     WHEN fi.expiry_date IS NOT NULL
                     THEN (fi.expiry_date - CURRENT_DATE)
@@ -240,11 +240,22 @@ async def add_fridge_item(
             {"ing_id": str(body.ingredient_id)},
         )
     else:
-        # Recherche par nom (ILIKE pour tolerance casse)
+        # Recherche par nom — stratégie en 3 étapes :
+        # 1. Exact match (insensible à la casse)
+        # 2. Sous-chaîne ILIKE (ex: "tomate" matche "tomate cerise")
+        # 3. Similarité pg_trgm > 0.2 (ex: "tomato" matche "tomate")
         ing_result = await session.execute(
             text(
-                "SELECT id, canonical_name FROM ingredients "
-                "WHERE LOWER(canonical_name) = LOWER(:name) LIMIT 1"
+                """
+                SELECT id, canonical_name FROM ingredients
+                WHERE LOWER(canonical_name) = LOWER(:name)
+                   OR canonical_name ILIKE '%' || :name || '%'
+                   OR similarity(canonical_name, :name) > 0.2
+                ORDER BY
+                    CASE WHEN LOWER(canonical_name) = LOWER(:name) THEN 0 ELSE 1 END,
+                    similarity(canonical_name, :name) DESC
+                LIMIT 1
+                """
             ),
             {"name": body.ingredient_name},
         )
@@ -268,7 +279,7 @@ async def add_fridge_item(
                 (household_id, ingredient_id, quantity, unit, expiry_date)
             VALUES
                 (:hid, :ing_id, :qty, :unit, :expiry)
-            RETURNING id, household_id, ingredient_id, quantity, unit, expiry_date, added_at::text
+            RETURNING id, household_id, ingredient_id, quantity, unit, expiry_date, added_at::text AS created_at
             """
         ),
         {
@@ -291,7 +302,7 @@ async def add_fridge_item(
     )
 
     item_dict = dict(row)
-    item_dict["canonical_name"] = ing_row["canonical_name"]
+    item_dict["ingredient_name"] = ing_row["canonical_name"]
     item_dict["days_until_expiry"] = None
 
     if body.expiry_date:

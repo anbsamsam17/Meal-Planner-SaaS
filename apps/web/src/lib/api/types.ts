@@ -223,15 +223,17 @@ export type FridgeItemUnit =
 export interface FridgeItem {
   id: string;
   household_id: string;
+  ingredient_id: string;
   ingredient_name: string;
   quantity: number;
   unit: FridgeItemUnit;
   expiry_date: string | null; // ISO date YYYY-MM-DD
-  created_at: string;
-  updated_at: string;
+  created_at: string | null;
+  days_until_expiry: number | null;
 }
 
 export interface FridgeItemCreate {
+  ingredient_id?: string | null; // UUID — prioritaire si fourni
   ingredient_name: string;
   quantity: number;
   unit: FridgeItemUnit;

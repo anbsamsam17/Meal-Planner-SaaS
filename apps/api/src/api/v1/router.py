@@ -12,7 +12,7 @@ Conventions de nommage :
 
 from fastapi import APIRouter
 
-from src.api.v1 import admin, billing, book, feedbacks, fridge, health, households, plans, recipes, webhooks
+from src.api.v1 import admin, billing, book, feedbacks, fridge, health, households, ingredients, plans, recipes, webhooks
 
 # Router racine v1 — inclus dans l'app principale sous /api/v1
 api_v1_router = APIRouter(prefix="/api/v1")
@@ -43,6 +43,9 @@ api_v1_router.include_router(billing.router)
 
 # Frigo — préfixe /fridge (gestion stock + suggestions) — Phase 2
 api_v1_router.include_router(fridge.router)
+
+# Ingrédients — préfixe /ingredients (recherche catalogue par pg_trgm)
+api_v1_router.include_router(ingredients.router)
 
 # Webhooks Stripe — /webhooks/stripe (pas d'auth JWT, signature Stripe) — Phase 2
 api_v1_router.include_router(webhooks.router)
