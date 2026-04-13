@@ -66,7 +66,7 @@ class ShoppingListItemRead(BaseModel):
     canonical_name: str
     category: str | None
     rayon: str = Field(description="Rayon supermarché (fruits_legumes, viandes_poissons, etc.).")
-    off_id: str | None = Field(description="Identifiant Open Food Facts.")
+    off_id: str | None = Field(default=None, description="Identifiant Open Food Facts.")
     quantities: list[dict] = Field(description="Quantités par unité [{quantity_display, quantity_value, unit}].")
     checked: bool = Field(default=False, description="Élément coché dans la liste partagée.")
     in_fridge: bool = Field(default=False, description="Déjà en stock dans le frigo.")
@@ -116,7 +116,9 @@ class GeneratePlanRequest(BaseModel):
     """
     Requête de génération d'un plan hebdomadaire.
 
-    Phase 2 : ajout des filtres avancés budget_max et include_fridge.
+    Filtres de préférence utilisateur (max_time, budget, style) appliqués
+    à la sélection SQL des recettes candidates. Les desserts sont toujours
+    exclus de la génération de dîners.
     """
 
     week_start: date = Field(
@@ -129,13 +131,26 @@ class GeneratePlanRequest(BaseModel):
         description="Nombre de dîners à planifier (3-7).",
     )
 
-    # ---- Filtres Phase 2 ----
+    # ---- Filtres de préférence utilisateur ----
+    max_time: int | None = Field(
+        default=None,
+        description="Temps max de préparation en minutes (ex: 30, 45, 60).",
+    )
+    budget: str | None = Field(
+        default=None,
+        description="Filtre budget : 'économique', 'moyen', 'premium'.",
+    )
+    style: str | None = Field(
+        default=None,
+        description="Style culinaire : 'gourmand', 'léger', 'protéiné', 'végétarien'.",
+    )
+
+    # ---- Filtres Phase 2 (conservés pour rétrocompatibilité) ----
     budget_max: str | None = Field(
         default=None,
         description=(
-            "Budget maximum hebdomadaire : 'économique', 'moyen', 'premium'. "
-            "Filtre les recettes selon le tag budget. "
-            "None = pas de filtre."
+            "Alias déprécié de 'budget'. Conservé pour rétrocompatibilité. "
+            "Si 'budget' et 'budget_max' sont tous deux fournis, 'budget' est prioritaire."
         ),
     )
     include_fridge: bool = Field(
@@ -154,6 +169,22 @@ class GeneratePlanRequest(BaseModel):
                 f"week_start doit être un lundi. Reçu : {self.week_start} "
                 f"(jour de semaine : {self.week_start.isoweekday()})."
             )
+
+    @property
+    def effective_budget(self) -> str | None:
+        """Retourne le budget effectif (budget prioritaire sur budget_max)."""
+        return self.budget or self.budget_max
+
+
+class AddMealRequest(BaseModel):
+    """Requête d'ajout d'un repas à un plan (ex: samedi/dimanche)."""
+
+    day_of_week: int = Field(
+        ge=1,
+        le=7,
+        description="Jour de la semaine (1=lundi, ..., 7=dimanche).",
+    )
+    recipe_id: UUID = Field(description="UUID de la recette à ajouter.")
 
 
 class SwapMealRequest(BaseModel):

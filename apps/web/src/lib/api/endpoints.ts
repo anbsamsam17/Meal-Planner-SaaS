@@ -119,8 +119,22 @@ export interface GeneratePlanResponse {
 }
 
 // FIX Phase 1 mature (review 2026-04-12) — Mismatch E : body generatePlan avec week_start obligatoire
+// Etendu avec filtres optionnels pour le modal "4 questions"
 export interface GeneratePlanBody {
   week_start: string; // ISO date du lundi de la semaine cible, ex: "2026-04-13"
+  num_dinners?: number;
+  max_time?: number | null;
+  budget?: string | null;
+  style?: string | null;
+}
+
+// Parametres de generation exposes aux composants
+export interface GeneratePlanParams {
+  week_start?: string;
+  num_dinners?: number;
+  max_time?: number | null;
+  budget?: string | null;
+  style?: string | null;
 }
 
 // Calcule le lundi de la semaine courante (ou le prochain si on est après lundi)
@@ -169,9 +183,45 @@ export async function updateMemberPreferences(
 // --- Endpoints Plans ---
 
 // FIX Phase 1 mature (review 2026-04-12) — Mismatch E : body vide → { week_start } obligatoire
-export async function generatePlan(): Promise<GeneratePlanResponse> {
-  const body: GeneratePlanBody = { week_start: getNextMonday() };
+// Etendu : accepte filtres optionnels max_time, budget, style depuis le modal "4 questions"
+export async function generatePlan(params?: GeneratePlanParams): Promise<GeneratePlanResponse> {
+  const body: GeneratePlanBody = {
+    week_start: params?.week_start ?? getNextMonday(),
+    ...(params?.num_dinners != null && { num_dinners: params.num_dinners }),
+    ...(params?.max_time != null && { max_time: params.max_time }),
+    ...(params?.budget != null && { budget: params.budget }),
+    ...(params?.style != null && { style: params.style }),
+  };
   return apiClient.post<GeneratePlanResponse>("/api/v1/plans/generate", body);
+}
+
+// Suggestions de recettes pour le swap/ajout — GET /api/v1/plans/{plan_id}/suggestions
+export async function getRecipeSuggestions(
+  planId: string,
+  filters?: { style?: string; max_time?: number },
+): Promise<Recipe[]> {
+  const params = new URLSearchParams();
+  if (filters?.style) params.set("style", filters.style);
+  if (filters?.max_time) params.set("max_time", String(filters.max_time));
+  const qs = params.toString();
+  const raw = await apiClient.get<Record<string, unknown>[]>(
+    `/api/v1/plans/${planId}/suggestions${qs ? `?${qs}` : ""}`,
+  );
+  // L'API peut retourner un tableau directement ou un objet { recipes: [...] }
+  const recipes = Array.isArray(raw) ? raw : ((raw as unknown as Record<string, unknown>).recipes as Record<string, unknown>[]) ?? [];
+  return recipes as unknown as Recipe[];
+}
+
+// Ajouter un repas a un plan (samedi/dimanche) — POST /api/v1/plans/{plan_id}/meals/add
+export async function addMealToPlan(
+  planId: string,
+  dayOfWeek: number,
+  recipeId: string,
+): Promise<PlannedMeal> {
+  return apiClient.post<PlannedMeal>(`/api/v1/plans/${planId}/meals/add`, {
+    day_of_week: dayOfWeek,
+    recipe_id: recipeId,
+  });
 }
 
 // FIX BLOQUANT 3 (2026-04-12) — Normalise la reponse API vers PlanDetail plat

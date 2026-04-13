@@ -1,83 +1,116 @@
 // apps/web/src/components/plan/plan-actions.tsx
-// Boutons d'action sur le plan : Valider / Régénérer / Voir la liste de courses
+// Boutons d'action sur le plan : Valider / Regenerer / Voir la liste de courses
 // Client Component — mutations TanStack Query
+// Refonte dashboard (2026-04-12) :
+//   - status=draft → Valider + Regenerer (ouvre modal 4 questions)
+//   - status=validated → "Plan valide" badge + "Voir ma liste de courses" en vert
+//   - swap/regenerer disparaissent apres validation
 "use client";
 
 import Link from "next/link";
 import { CheckCircle, RefreshCw, ShoppingCart, Loader2 } from "lucide-react";
-import { useValidatePlan, useGeneratePlan } from "@/hooks/use-plan";
+import { useValidatePlan } from "@/hooks/use-plan";
 import { cn } from "@/lib/utils";
 
 // FIX BLOQUANT 3 (2026-04-12) — status backend : "draft" | "validated" | "archived"
 interface PlanActionsProps {
   planId: string;
   planStatus: "draft" | "validated" | "archived";
-  onStartPolling?: () => void;
+  /** Ouvre le modal de generation avec les 4 questions */
+  onRegenerate?: () => void;
+  isRegenerating?: boolean;
   className?: string;
 }
 
-export function PlanActions({ planId, planStatus, onStartPolling, className }: PlanActionsProps) {
+export function PlanActions({
+  planId,
+  planStatus,
+  onRegenerate,
+  isRegenerating = false,
+  className,
+}: PlanActionsProps) {
   const validateMutation = useValidatePlan();
-  const generateMutation = useGeneratePlan(onStartPolling);
 
   const isValidated = planStatus === "validated" || planStatus === "archived";
 
   return (
     <div className={cn("flex flex-col gap-3 sm:flex-row", className)}>
-      {/* Valider le plan */}
-      <button
-        type="button"
-        onClick={() => validateMutation.mutate(planId)}
-        disabled={validateMutation.isPending || isValidated}
-        aria-busy={validateMutation.isPending}
-        className={cn(
-          "inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3",
-          "text-sm font-semibold transition-all duration-base",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2",
-          isValidated
-            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-            : "bg-primary-500 text-white hover:bg-primary-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50",
-        )}
-      >
-        {validateMutation.isPending ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        ) : (
-          <CheckCircle className="h-4 w-4" aria-hidden="true" />
-        )}
-        {isValidated ? "Plan validé" : "Valider le plan"}
-      </button>
+      {/* Mode draft : bouton Valider + Regenerer */}
+      {!isValidated && (
+        <>
+          {/* Valider le plan */}
+          <button
+            type="button"
+            onClick={() => validateMutation.mutate(planId)}
+            disabled={validateMutation.isPending}
+            aria-busy={validateMutation.isPending}
+            className={cn(
+              "inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3",
+              "text-sm font-semibold transition-all duration-200",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2725B] focus-visible:ring-offset-2",
+              "bg-[#E2725B] text-white hover:bg-[hsl(14,72%,46%)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50",
+            )}
+          >
+            {validateMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <CheckCircle className="h-4 w-4" aria-hidden="true" />
+            )}
+            Valider mon plan
+          </button>
 
-      {/* Voir la liste de courses */}
-      <Link
-        href={`/shopping-list?plan=${planId}`}
-        className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl
-          border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700
-          transition-all hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700
-          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
-          dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
-      >
-        <ShoppingCart className="h-4 w-4" aria-hidden="true" />
-        Voir mes courses
-      </Link>
+          {/* Regenerer — ouvre le modal 4 questions */}
+          {onRegenerate && (
+            <button
+              type="button"
+              onClick={onRegenerate}
+              disabled={isRegenerating}
+              aria-busy={isRegenerating}
+              className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-4 py-3
+                text-sm font-medium text-[#857370] transition-colors hover:bg-[#857370]/10 hover:text-[#201a19]
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2725B] focus-visible:ring-offset-2
+                disabled:opacity-50"
+            >
+              {isRegenerating ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              )}
+              Regenerer
+            </button>
+          )}
+        </>
+      )}
 
-      {/* Régénérer le plan */}
-      <button
-        type="button"
-        onClick={() => generateMutation.mutate()}
-        disabled={generateMutation.isPending}
-        aria-busy={generateMutation.isPending}
-        className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-4 py-3
-          text-sm font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700
-          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2
-          disabled:opacity-50 dark:text-neutral-400 dark:hover:bg-neutral-700"
-      >
-        {generateMutation.isPending ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        ) : (
-          <RefreshCw className="h-4 w-4" aria-hidden="true" />
-        )}
-        Régénérer
-      </button>
+      {/* Mode validated : badge + lien vert vers courses */}
+      {isValidated && (
+        <>
+          {/* Badge "Plan valide" */}
+          <div
+            className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl
+              bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700
+              dark:bg-emerald-900/20 dark:text-emerald-400"
+          >
+            <CheckCircle className="h-4 w-4" aria-hidden="true" />
+            Plan valide
+          </div>
+
+          {/* Lien vert vers la liste de courses */}
+          <Link
+            href="/shopping-list"
+            className={cn(
+              "inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3",
+              "text-sm font-semibold transition-all duration-200",
+              "bg-emerald-500 text-white hover:bg-emerald-600",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2",
+              "active:scale-[0.98]",
+            )}
+          >
+            <ShoppingCart className="h-4 w-4" aria-hidden="true" />
+            Voir ma liste de courses
+          </Link>
+        </>
+      )}
     </div>
   );
 }

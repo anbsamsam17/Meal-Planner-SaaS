@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.v1.schemas.common import TaskResponse
 from src.api.v1.schemas.plan import (
+    AddMealRequest,
     GeneratePlanRequest,
     PlannedMealRead,
     RecipeSummary,
@@ -160,47 +161,91 @@ async def generate_plan(
     """
     household_id = await _get_user_household_id(session, user.user_id)
 
-    logger.info("plan_generate_sync_start", household_id=str(household_id), week_start=str(body.week_start))
+    logger.info(
+        "plan_generate_sync_start",
+        household_id=str(household_id),
+        week_start=str(body.week_start),
+        max_time=body.max_time,
+        budget=body.effective_budget,
+        style=body.style,
+    )
 
-    # Génération SYNCHRONE — sélectionne des recettes et crée le plan directement
-    # Plus fiable que Celery pour la v1 (pas de dépendance Redis inter-containers)
+    # Generation SYNCHRONE -- selectionne des recettes et cree le plan directement
+    # Plus fiable que Celery pour la v1 (pas de dependance Redis inter-containers)
     try:
-        import random
-
-        # 1. Récupérer des recettes candidates (fallback sans embeddings)
-        candidates_result = await session.execute(
+        # 0. Supprimer l'ancien plan si il existe (regeneration)
+        await session.execute(
             text("""
-                SELECT id, title, cuisine_type, total_time_min, difficulty
-                FROM recipes
-                WHERE quality_score >= 0.6
-                ORDER BY RANDOM()
-                LIMIT :limit
+                DELETE FROM planned_meals WHERE plan_id IN (
+                    SELECT id FROM weekly_plans WHERE household_id = :hid AND week_start = :ws
+                )
             """),
-            {"limit": body.num_dinners * 5},
+            {"hid": str(household_id), "ws": body.week_start},
+        )
+        await session.execute(
+            text("""
+                DELETE FROM weekly_plans WHERE household_id = :hid AND week_start = :ws
+            """),
+            {"hid": str(household_id), "ws": body.week_start},
+        )
+
+        # 1. Construire la query filtree selon les preferences utilisateur
+        conditions = ["quality_score >= 0.6", "NOT ('dessert' = ANY(tags))"]
+        params: dict[str, object] = {"limit": body.num_dinners * 6}
+
+        if body.max_time:
+            conditions.append("total_time_min <= :max_time")
+            params["max_time"] = body.max_time
+
+        effective_budget = body.effective_budget
+        if effective_budget:
+            conditions.append(":budget = ANY(tags)")
+            params["budget"] = effective_budget
+
+        if body.style == "végétarien":
+            conditions.append("'végétarien' = ANY(tags)")
+        elif body.style == "protéiné":
+            conditions.append("NOT ('végétarien' = ANY(tags))")
+            conditions.append("NOT ('vegan' = ANY(tags))")
+        elif body.style == "léger":
+            conditions.append("difficulty <= 2")
+
+        where = " AND ".join(conditions)
+
+        candidates_result = await session.execute(
+            text(f"""
+                SELECT id, title, cuisine_type, total_time_min, difficulty, tags
+                FROM recipes WHERE {where}
+                ORDER BY RANDOM() LIMIT :limit
+            """),
+            params,
         )
         candidates = candidates_result.mappings().all()
 
         if len(candidates) < body.num_dinners:
-            raise HTTPException(404, "Pas assez de recettes en base pour générer un plan.")
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                "Pas assez de recettes en base correspondant aux filtres pour générer un plan.",
+            )
 
-        # 2. Sélectionner N recettes diversifiées (cuisines variées)
+        # 2. Selectionner N recettes diversifiees (cuisines variees)
         selected = []
         cuisines_seen: set[str] = set()
         for c in candidates:
             if len(selected) >= body.num_dinners:
                 break
             cuisine = c.get("cuisine_type", "")
-            # Favoriser la diversité de cuisines
+            # Favoriser la diversite de cuisines
             if cuisine not in cuisines_seen or len(selected) >= body.num_dinners - 2:
                 selected.append(c)
                 cuisines_seen.add(cuisine)
 
-        # Compléter si pas assez
+        # Completer si pas assez
         if len(selected) < body.num_dinners:
             remaining = [c for c in candidates if c not in selected]
-            selected.extend(remaining[:body.num_dinners - len(selected)])
+            selected.extend(remaining[: body.num_dinners - len(selected)])
 
-        # 3. Créer le plan en base
+        # 3. Creer le plan en base
         plan_result = await session.execute(
             text("""
                 INSERT INTO weekly_plans (id, household_id, week_start, status)
@@ -211,7 +256,7 @@ async def generate_plan(
         )
         plan_id = str(plan_result.fetchone()[0])
 
-        # 4. Insérer les meals (1 par jour, du lundi au dimanche)
+        # 4. Inserer les meals (1 par jour, du lundi au dimanche)
         for i, recipe in enumerate(selected):
             day_of_week = i + 1  # 1=lundi, 2=mardi, etc.
             await session.execute(
@@ -587,13 +632,18 @@ async def validate_plan(
         {"plan_id": str(plan_id)},
     )
     updated = result.mappings().one_or_none()
-    await session.commit()
 
     if updated is None:
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Ce plan est déjà validé (modifié en parallèle).",
         )
+
+    # -- Generation de la liste de courses a la validation --
+    await _generate_shopping_list(session, plan_id)
+
+    await session.commit()
 
     logger.info(
         "plan_validated",
@@ -707,7 +757,327 @@ async def swap_meal(
     return PlannedMealRead.model_validate(dict(meal_row))
 
 
-# ---- Helper ----
+# ---- POST /plans/{plan_id}/meals/add ----
+
+@router.post(
+    "/{plan_id}/meals/add",
+    summary="Ajouter un repas au plan",
+    description=(
+        "Ajoute un repas à un plan en statut 'draft' (ex: samedi ou dimanche). "
+        "Si un repas existe déjà pour ce jour et ce slot, il est remplacé. "
+        f"Rate limit : {LIMIT_USER_WRITE}."
+    ),
+    response_model=PlannedMealRead,
+    responses={
+        status.HTTP_404_NOT_FOUND: {"description": "Plan ou recette introuvable."},
+        status.HTTP_409_CONFLICT: {"description": "Le plan est déjà validé."},
+        status.HTTP_403_FORBIDDEN: {"description": "Ce plan n'appartient pas à votre foyer."},
+    },
+)
+@limiter.limit(LIMIT_USER_WRITE, key_func=get_user_key)
+async def add_meal_to_plan(
+    request: Request,
+    plan_id: UUID,
+    body: AddMealRequest,
+    session: AsyncSession = Depends(get_db),
+    user: TokenPayload = Depends(get_current_user_dep),
+) -> Any:
+    """
+    Ajoute un repas manuellement à un plan draft (ex: samedi/dimanche).
+
+    Utilise ON CONFLICT pour remplacer le repas existant si le jour et le slot
+    sont déjà occupés (upsert).
+
+    Args:
+        request: Requête FastAPI (requis par slowapi).
+        plan_id: UUID du plan.
+        body: Jour de la semaine et recipe_id.
+        session: Session DB injectée.
+        user: Payload JWT.
+
+    Returns:
+        PlannedMealRead du repas créé/remplacé.
+    """
+    household_id = await _get_user_household_id(session, user.user_id)
+
+    # Verification plan + status
+    plan_result = await session.execute(
+        text("SELECT household_id, status FROM weekly_plans WHERE id = :plan_id"),
+        {"plan_id": str(plan_id)},
+    )
+    plan_row = plan_result.mappings().one_or_none()
+
+    if plan_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Plan {plan_id} introuvable.",
+        )
+
+    if str(plan_row["household_id"]) != str(household_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Ce plan n'appartient pas à votre foyer.",
+        )
+
+    if plan_row["status"] != "draft":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Impossible de modifier un plan déjà validé ou archivé.",
+        )
+
+    # Verifier que la recette existe
+    recipe_check = await session.execute(
+        text("SELECT id FROM recipes WHERE id = :rid"),
+        {"rid": str(body.recipe_id)},
+    )
+    if recipe_check.fetchone() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Recette {body.recipe_id} introuvable.",
+        )
+
+    # Upsert : ON CONFLICT sur (plan_id, day_of_week, slot) remplace la recette
+    meal_result = await session.execute(
+        text("""
+            INSERT INTO planned_meals (id, plan_id, day_of_week, slot, recipe_id, servings_adjusted)
+            VALUES (gen_random_uuid(), :pid, :dow, 'dinner', :rid, 4)
+            ON CONFLICT (plan_id, day_of_week, slot)
+            DO UPDATE SET recipe_id = :rid
+            RETURNING id, plan_id, day_of_week, slot, recipe_id, servings_adjusted
+        """),
+        {
+            "pid": str(plan_id),
+            "dow": body.day_of_week,
+            "rid": str(body.recipe_id),
+        },
+    )
+    meal_row = meal_result.mappings().one()
+    await session.commit()
+
+    logger.info(
+        "plan_meal_added",
+        plan_id=str(plan_id),
+        day_of_week=body.day_of_week,
+        recipe_id=str(body.recipe_id),
+        by_user=user.user_id,
+    )
+
+    return PlannedMealRead.model_validate(dict(meal_row))
+
+
+# ---- GET /plans/{plan_id}/suggestions ----
+
+@router.get(
+    "/{plan_id}/suggestions",
+    summary="Suggestions de recettes pour swap",
+    description=(
+        "Retourne 6 recettes alternatives pour remplacer un repas dans le plan. "
+        "Exclut les recettes déjà présentes dans le plan et les desserts. "
+        f"Rate limit : {LIMIT_USER_READ}."
+    ),
+    response_model=list[RecipeSummary],
+    responses={
+        status.HTTP_404_NOT_FOUND: {"description": "Plan introuvable."},
+        status.HTTP_403_FORBIDDEN: {"description": "Ce plan n'appartient pas à votre foyer."},
+    },
+)
+@limiter.limit(LIMIT_USER_READ, key_func=get_user_key)
+async def get_recipe_suggestions(
+    request: Request,
+    plan_id: UUID,
+    style: str | None = None,
+    max_time: int | None = None,
+    session: AsyncSession = Depends(get_db),
+    user: TokenPayload = Depends(get_current_user_dep),
+) -> Any:
+    """
+    Retourne des recettes alternatives pour le swap individuel.
+
+    Exclut les recettes deja dans le plan pour garantir la diversite.
+    Filtre optionnel par style culinaire et temps max.
+
+    Args:
+        request: Requête FastAPI (requis par slowapi).
+        plan_id: UUID du plan.
+        style: Filtre style (rapide, protéiné, végétarien, léger).
+        max_time: Temps max en minutes.
+        session: Session DB injectée.
+        user: Payload JWT.
+
+    Returns:
+        Liste de 6 RecipeSummary matchant les critères.
+    """
+    household_id = await _get_user_household_id(session, user.user_id)
+
+    # Verification plan + appartenance
+    plan_result = await session.execute(
+        text("SELECT household_id FROM weekly_plans WHERE id = :plan_id"),
+        {"plan_id": str(plan_id)},
+    )
+    plan_row = plan_result.mappings().one_or_none()
+
+    if plan_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Plan {plan_id} introuvable.",
+        )
+
+    if str(plan_row["household_id"]) != str(household_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Ce plan n'appartient pas à votre foyer.",
+        )
+
+    # Recuperer les recipe_ids deja dans le plan (a exclure)
+    existing_result = await session.execute(
+        text("SELECT recipe_id FROM planned_meals WHERE plan_id = :pid"),
+        {"pid": str(plan_id)},
+    )
+    existing_ids = [str(row[0]) for row in existing_result.fetchall()]
+
+    # Construire la query filtree
+    conditions = ["quality_score >= 0.6", "NOT ('dessert' = ANY(tags))"]
+    params: dict[str, object] = {"limit": 6}
+
+    if existing_ids:
+        conditions.append("id != ALL(:existing_ids)")
+        params["existing_ids"] = existing_ids
+
+    if max_time:
+        conditions.append("total_time_min <= :max_time")
+        params["max_time"] = max_time
+
+    if style == "végétarien":
+        conditions.append("'végétarien' = ANY(tags)")
+    elif style == "protéiné":
+        conditions.append("NOT ('végétarien' = ANY(tags))")
+        conditions.append("NOT ('vegan' = ANY(tags))")
+    elif style == "léger":
+        conditions.append("difficulty <= 2")
+    elif style == "rapide":
+        conditions.append("total_time_min <= 30")
+
+    where = " AND ".join(conditions)
+
+    suggestions_result = await session.execute(
+        text(f"""
+            SELECT id, title, slug, photo_url, total_time_min,
+                   difficulty, cuisine_type, tags, quality_score
+            FROM recipes WHERE {where}
+            ORDER BY RANDOM() LIMIT :limit
+        """),
+        params,
+    )
+    rows = suggestions_result.mappings().all()
+
+    suggestions = []
+    for r_row in rows:
+        r_dict = dict(r_row)
+        tags_raw = r_dict.get("tags")
+        if isinstance(tags_raw, str):
+            r_dict["tags"] = json.loads(tags_raw)
+        elif tags_raw is None:
+            r_dict["tags"] = []
+        suggestions.append(RecipeSummary.model_validate(r_dict))
+
+    return suggestions
+
+
+# ---- Helpers ----
+
+# Mapping categorie ingredient -> rayon supermarche
+RAYON_MAP = {
+    "other": "Epicerie",
+    "meat": "Boucherie",
+    "poultry": "Volaille",
+    "fish": "Poissonnerie",
+    "dairy": "Cremerie",
+    "vegetable": "Fruits & legumes",
+    "fruit": "Fruits & legumes",
+    "spice": "Epices",
+    "grain": "Epicerie",
+    "oil": "Huiles & condiments",
+    "sauce": "Sauces",
+    "herb": "Herbes fraiches",
+}
+
+
+def _map_category_to_rayon(cat: str) -> str:
+    """Mappe une categorie d'ingredient a un rayon de supermarche."""
+    return RAYON_MAP.get(cat, "Epicerie")
+
+
+async def _generate_shopping_list(session: AsyncSession, plan_id: Any) -> None:
+    """
+    Genere la liste de courses a partir des ingredients des recettes du plan.
+
+    Agregue les quantites par ingredient canonique et insere/met a jour
+    la shopping_list en base avec ON CONFLICT pour eviter les doublons.
+
+    Args:
+        session: Session SQLAlchemy async (meme transaction que la validation).
+        plan_id: UUID du plan valide.
+    """
+    from collections import defaultdict
+
+    ingredients_result = await session.execute(
+        text("""
+            SELECT i.canonical_name, i.category, ri.unit, ri.notes, ri.quantity, ri.position
+            FROM planned_meals pm
+            JOIN recipe_ingredients ri ON ri.recipe_id = pm.recipe_id
+            JOIN ingredients i ON i.id = ri.ingredient_id
+            WHERE pm.plan_id = :pid
+            ORDER BY i.category, i.canonical_name
+        """),
+        {"pid": str(plan_id)},
+    )
+
+    # Agreger par ingredient
+    items_by_name: dict[str, dict] = defaultdict(
+        lambda: {"quantities": [], "category": "other"}
+    )
+    for row in ingredients_result.mappings().all():
+        name = row["canonical_name"]
+        items_by_name[name]["category"] = row["category"] or "other"
+        items_by_name[name]["canonical_name"] = name
+        items_by_name[name]["quantities"].append(
+            {
+                "quantity": float(row["quantity"] or 1),
+                "unit": row["unit"] or "",
+                "from_recipe": row["notes"] or name,
+            }
+        )
+
+    # Construire le JSON et INSERT/UPDATE dans shopping_lists
+    items_json = json.dumps(
+        [
+            {
+                "ingredient_id": "",
+                "canonical_name": name,
+                "category": data["category"],
+                "rayon": _map_category_to_rayon(data["category"]),
+                "quantities": data["quantities"],
+                "checked": False,
+            }
+            for name, data in items_by_name.items()
+        ]
+    )
+
+    await session.execute(
+        text("""
+            INSERT INTO shopping_lists (id, plan_id, items, generated_at)
+            VALUES (gen_random_uuid(), :pid, CAST(:items AS jsonb), now())
+            ON CONFLICT (plan_id) DO UPDATE SET items = CAST(:items AS jsonb), generated_at = now()
+        """),
+        {"pid": str(plan_id), "items": items_json},
+    )
+
+    logger.info(
+        "shopping_list_generated",
+        plan_id=str(plan_id),
+        items_count=len(items_by_name),
+    )
+
 
 async def _get_plan_detail(session: AsyncSession, plan_id: Any) -> WeeklyPlanDetail:
     """

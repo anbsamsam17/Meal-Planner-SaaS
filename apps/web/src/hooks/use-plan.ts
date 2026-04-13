@@ -1,7 +1,8 @@
 // apps/web/src/hooks/use-plan.ts
 // Hooks TanStack Query pour les plans hebdomadaires
-// Couvre : plan courant, plan par ID, generation, swap recette
+// Couvre : plan courant, plan par ID, generation, swap recette, ajout repas, suggestions
 // FIX BLOQUANT 2 (2026-04-12) : polling conditionnel apres generation asynchrone (Celery)
+// Refonte dashboard (2026-04-12) : filtres generation, suggestions, ajout repas samedi/dimanche
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -12,14 +13,19 @@ import {
   generatePlan,
   swapMeal,
   validatePlan,
+  getRecipeSuggestions,
+  addMealToPlan,
 } from "@/lib/api/endpoints";
-import type { PlanDetail } from "@/lib/api/endpoints";
+import type { PlanDetail, GeneratePlanParams } from "@/lib/api/endpoints";
+import type { Recipe } from "@/lib/api/types";
 import { toast } from "sonner";
 
 // Cles de requete stables
 export const PLAN_QUERY_KEYS = {
   current: ["plans", "current"] as const,
   byId: (id: string) => ["plans", id] as const,
+  suggestions: (planId: string, filters?: { style?: string; max_time?: number }) =>
+    ["plans", planId, "suggestions", filters] as const,
 };
 
 // Timeout max pour le polling (60 secondes)
@@ -100,11 +106,12 @@ export function usePlan(id: string | null) {
 // Mutation — Generer un nouveau plan (POST /api/v1/plans/generate)
 // FIX BLOQUANT 2 : apres le 202, on declenche le polling via startPolling()
 // Le toast de succes est affiche par useCurrentPlan quand le plan arrive.
+// Refonte : accepte les filtres max_time, budget, style depuis le modal "4 questions"
 export function useGeneratePlan(startPolling?: () => void) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: generatePlan,
+    mutationFn: (params?: GeneratePlanParams) => generatePlan(params),
     onSuccess: () => {
       // Invalider le cache pour que le prochain poll demarre avec un etat frais
       void queryClient.invalidateQueries({ queryKey: PLAN_QUERY_KEYS.current });
@@ -162,8 +169,41 @@ export function useSwapMeal(planId: string) {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: PLAN_QUERY_KEYS.current });
-      toast.success("Recette remplacée !");
+      toast.success("Recette remplacee !");
     },
+  });
+}
+
+// Mutation — Ajouter un repas au plan (POST /api/v1/plans/{plan_id}/meals/add)
+// Utilise pour ajouter samedi/dimanche
+export function useAddMeal(planId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ dayOfWeek, recipeId }: { dayOfWeek: number; recipeId: string }) =>
+      addMealToPlan(planId, dayOfWeek, recipeId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: PLAN_QUERY_KEYS.current });
+      toast.success("Repas ajoute !");
+    },
+    onError: (err: Error) => {
+      toast.error("Ajout impossible", { description: err.message });
+    },
+  });
+}
+
+// Query — Suggestions de recettes pour swap/ajout
+// GET /api/v1/plans/{plan_id}/suggestions?style=...&max_time=...
+export function useRecipeSuggestions(
+  planId: string,
+  filters?: { style?: string; max_time?: number },
+  enabled = true,
+) {
+  return useQuery<Recipe[], Error>({
+    queryKey: PLAN_QUERY_KEYS.suggestions(planId, filters),
+    queryFn: () => getRecipeSuggestions(planId, filters),
+    enabled: enabled && !!planId,
+    staleTime: 30 * 1000, // 30 secondes — suggestions fraiches a chaque ouverture
   });
 }
 
@@ -175,8 +215,8 @@ export function useValidatePlan() {
     mutationFn: validatePlan,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: PLAN_QUERY_KEYS.current });
-      toast.success("Plan validé !", {
-        description: "Vos courses sont prêtes à être préparées.",
+      toast.success("Plan valide !", {
+        description: "Liste de courses generee.",
       });
     },
     onError: (err: Error) => {
