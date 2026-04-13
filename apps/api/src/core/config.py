@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     # Base de données
     # -------------------------------------------------------------------------
     DATABASE_URL: str = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/postgres",
         description="URL de connexion PostgreSQL asyncpg. "
         "Format : postgresql+asyncpg://user:pass@host:port/db"
     )
@@ -54,12 +55,15 @@ class Settings(BaseSettings):
     # Supabase Auth
     # -------------------------------------------------------------------------
     SUPABASE_URL: str = Field(
+        default="",
         description="URL de l'instance Supabase. Format : https://<project>.supabase.co"
     )
     SUPABASE_ANON_KEY: str = Field(
+        default="",
         description="Clé publique Supabase (JWT anon). Utilisée côté client web."
     )
     SUPABASE_SERVICE_ROLE_KEY: str = Field(
+        default="",
         description="Clé service-role Supabase. Bypass RLS. "
         "JAMAIS exposée au frontend. Réservée au backend et aux agents IA."
     )
@@ -74,6 +78,7 @@ class Settings(BaseSettings):
         description="Provider LLM actif. 'gemini' (défaut, gratuit 15 req/min) ou 'anthropic' (payant).",
     )
     GOOGLE_AI_API_KEY: str = Field(
+        default="",
         description="Clé API Google AI Studio pour Gemini. "
         "Obtenir sur : https://aistudio.google.com/apikey. "
         "Obligatoire si LLM_PROVIDER=gemini."
@@ -96,10 +101,11 @@ class Settings(BaseSettings):
     # FIX #11 (review Phase 1 2026-04-12) : SPOONACULAR_API_KEY est le nom correct dans config.py
     # devops-engineer doit corriger .env.example : SPOONACULAR_KEY → SPOONACULAR_API_KEY
     SPOONACULAR_API_KEY: str = Field(
+        default="",
         description="Clé API Spoonacular. Free tier = 150 req/jour. Surveiller le quota."
     )
-    EDAMAM_APP_ID: str = Field(description="Application ID Edamam.")
-    EDAMAM_APP_KEY: str = Field(description="Application Key Edamam.")
+    EDAMAM_APP_ID: str = Field(default="", description="Application ID Edamam.")
+    EDAMAM_APP_KEY: str = Field(default="", description="Application Key Edamam.")
 
     # -------------------------------------------------------------------------
     # Stripe Billing — Phase 2
