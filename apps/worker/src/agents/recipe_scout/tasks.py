@@ -238,7 +238,11 @@ def embed_recipe(self, recipe_id: str) -> dict[str, Any]:
     Returns:
         Dict avec le recipe_id et la dimension du vecteur.
     """
-    from src.agents.recipe_scout.embedder import RecipeEmbedder
+    try:
+        from src.agents.recipe_scout.embedder import RecipeEmbedder
+    except ImportError:
+        logger.warning("embed_skipped_no_sentence_transformers", recipe_id=recipe_id)
+        return {"recipe_id": recipe_id, "status": "skipped", "reason": "sentence-transformers not installed"}
 
     logger.info(
         "task_embed_recipe_start",

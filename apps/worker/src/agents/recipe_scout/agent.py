@@ -34,7 +34,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from src.agents.recipe_scout.connectors.edamam import EdamamClient
 from src.agents.recipe_scout.connectors.spoonacular import SpoonacularClient
 from src.agents.recipe_scout.dedup import compute_batch_dedup, is_recipe_duplicate
-from src.agents.recipe_scout.embedder import RecipeEmbedder
 from src.agents.recipe_scout.normalizer import normalize_recipe_ingredients
 from src.agents.recipe_scout.scrapers.base import RawRecipe
 from src.agents.recipe_scout.scrapers.marmiton import MarmitonScraper
@@ -127,7 +126,13 @@ class RecipeScoutAgent:
         self.marmiton_urls = marmiton_urls or []
         self.max_recipes_per_source = max_recipes_per_source
         self.sources = sources or ["marmiton", "spoonacular", "edamam"]
-        self.embedder = RecipeEmbedder.get_instance()
+        # Lazy import — sentence-transformers est optionnel (trop lourd pour Railway)
+        try:
+            from src.agents.recipe_scout.embedder import RecipeEmbedder
+            self.embedder = RecipeEmbedder.get_instance()
+        except ImportError:
+            self.embedder = None
+            logger.warning("embedder_unavailable", hint="sentence-transformers non installé — embeddings désactivés")
         # Flag dry_run : les recettes sont scrapées/validées mais pas insérées en DB.
         # Positionné depuis le script manuel ou les tests d'intégration.
         self._dry_run: bool = False
