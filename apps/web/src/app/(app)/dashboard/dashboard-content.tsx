@@ -208,11 +208,12 @@ export function DashboardContent({ initialPlanData }: DashboardContentProps) {
         onAddDay={currentPlan.status === "draft" ? handleAddDay : undefined}
       />
 
-      {/* Actions plan */}
+      {/* Actions plan — onRegenerate toujours passé pour que le bouton
+         "Modifier mon plan" apparaisse aussi en mode validated */}
       <PlanActions
         planId={currentPlan.id}
         planStatus={currentPlan.status}
-        onRegenerate={currentPlan.status === "draft" ? openGenerateModal : undefined}
+        onRegenerate={openGenerateModal}
         isRegenerating={generateMutation.isPending}
       />
 

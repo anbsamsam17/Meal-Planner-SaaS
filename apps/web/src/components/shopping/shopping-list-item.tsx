@@ -73,13 +73,14 @@ export function ShoppingListItem({ item, onToggle, onDelete, className }: Shoppi
           className="flex flex-1 cursor-pointer items-center justify-between gap-2"
         >
           <div className="flex flex-col">
-            {/* Nom ingrédient */}
+            {/* Nom ingredient + quantite aggregee */}
             <span
               className={cn(
                 "text-sm font-medium text-neutral-900 dark:text-neutral-100",
                 item.is_checked && "text-neutral-400 line-through dark:text-neutral-500",
               )}
             >
+              {item.quantity_display ? `${item.quantity_display} — ` : ""}
               {item.ingredient_name}
             </span>
 
@@ -89,15 +90,17 @@ export function ShoppingListItem({ item, onToggle, onDelete, className }: Shoppi
             </span>
           </div>
 
-          {/* Quantité */}
-          <span
-            className={cn(
-              "shrink-0 text-sm text-neutral-500 dark:text-neutral-400",
-              item.is_checked && "text-neutral-300 line-through dark:text-neutral-600",
-            )}
-          >
-            {item.quantity} {item.unit}
-          </span>
+          {/* Quantite brute — fallback si pas de quantity_display */}
+          {!item.quantity_display && item.quantity > 0 && (
+            <span
+              className={cn(
+                "shrink-0 text-sm text-neutral-500 dark:text-neutral-400",
+                item.is_checked && "text-neutral-300 line-through dark:text-neutral-600",
+              )}
+            >
+              {item.quantity} {item.unit}
+            </span>
+          )}
         </label>
 
         {/* Badge "En stock" */}

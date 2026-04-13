@@ -111,6 +111,7 @@ export interface ShoppingListItem {
   category: IngredientCategory;
   is_checked: boolean;
   is_in_stock: boolean; // Marqué "déjà en stock"
+  quantity_display?: string; // Quantites aggregees formatees — ex: "2 cups, 1 tbsp"
   recipe_ids: string[]; // Quelles recettes nécessitent cet ingrédient
   estimated_price: number | null; // En euros — Phase 3
   open_food_facts_id: string | null; // Pour le mapping drive (Phase 3)
