@@ -186,10 +186,63 @@ export async function getShoppingList(planId: string): Promise<ShoppingListItem[
   return apiClient.get<ShoppingListItem[]>(`/api/v1/plans/me/${planId}/shopping-list`);
 }
 
+// --- Normalisation Recipe : mappe les champs API bruts vers les champs frontend ---
+
+/**
+ * Convertit une difficulté numérique (1-5) en label textuel.
+ * Conserve le format string si déjà normalisé.
+ */
+function mapDifficulty(d: unknown): "easy" | "medium" | "hard" | null {
+  if (d == null) return null;
+  // Si déjà un label textuel, le retourner tel quel
+  if (d === "easy" || d === "medium" || d === "hard") return d;
+  // Conversion numérique : 1-2 → easy, 3 → medium, 4-5 → hard
+  const num = typeof d === "number" ? d : Number(d);
+  if (Number.isNaN(num)) return null;
+  if (num <= 2) return "easy";
+  if (num <= 3) return "medium";
+  return "hard";
+}
+
+/**
+ * Normalise un objet recette brut de l'API vers le type Recipe frontend.
+ * Conserve aussi les champs API originaux pour compatibilité descendante.
+ */
+function normalizeRecipe(apiRecipe: Record<string, unknown>): Recipe {
+  const raw = apiRecipe as Record<string, any>;
+  return {
+    ...raw,
+    // Champs normalisés mappés depuis les noms API
+    id: raw.id,
+    title: raw.title,
+    slug: raw.slug ?? undefined,
+    description: raw.description ?? null,
+    image_url: raw.photo_url ?? raw.image_url ?? null,
+    total_time_minutes: raw.total_time_min ?? raw.total_time_minutes ?? null,
+    prep_time_minutes: raw.prep_time_min ?? raw.prep_time_minutes ?? null,
+    cook_time_minutes: raw.cook_time_min ?? raw.cook_time_minutes ?? null,
+    cuisine: raw.cuisine_type ?? raw.cuisine ?? null,
+    difficulty: mapDifficulty(raw.difficulty),
+    dietary_tags: raw.tags ?? raw.dietary_tags ?? [],
+    rating_average: raw.quality_score != null ? raw.quality_score * 5 : (raw.rating_average ?? null),
+    rating_count: raw.rating_count ?? 0,
+    servings: raw.servings ?? null,
+    // Champs API originaux conservés pour les composants qui les lisent directement
+    photo_url: raw.photo_url ?? null,
+    total_time_min: raw.total_time_min ?? null,
+    prep_time_min: raw.prep_time_min ?? null,
+    cook_time_min: raw.cook_time_min ?? null,
+    cuisine_type: raw.cuisine_type ?? null,
+    tags: raw.tags ?? [],
+    quality_score: raw.quality_score ?? null,
+  } as Recipe;
+}
+
 // --- Endpoints Recipes ---
 
 export async function getRecipe(id: string): Promise<Recipe> {
-  return apiClient.get<Recipe>(`/api/v1/recipes/${id}`);
+  const raw = await apiClient.get<Record<string, unknown>>(`/api/v1/recipes/${id}`);
+  return normalizeRecipe(raw);
 }
 
 export async function searchRecipes(params: RecipeSearchParams): Promise<Recipe[]> {
@@ -204,6 +257,8 @@ export async function searchRecipes(params: RecipeSearchParams): Promise<Recipe[
 }
 
 // Recherche recettes avec filtres avancés Phase 2
+// BUG-001 fix : l'API attend max_difficulty (pas difficulty)
+// BUG-005 fix : normalisation des recettes retournées
 export async function searchRecipesAdvanced(
   filters: RecipeFilters,
 ): Promise<PaginatedResponse<Recipe>> {
@@ -211,7 +266,9 @@ export async function searchRecipesAdvanced(
   if (filters.q) params.set("q", filters.q);
   if (filters.cuisine) params.set("cuisine", filters.cuisine);
   if (filters.max_time) params.set("max_time", String(filters.max_time));
-  if (filters.difficulty) params.set("difficulty", String(filters.difficulty));
+  // BUG-001 : l'API déclare min_difficulty / max_difficulty, pas "difficulty"
+  // On envoie max_difficulty pour filtrer "au plus cette difficulté"
+  if (filters.difficulty) params.set("max_difficulty", String(filters.difficulty));
   if (filters.budget) params.set("budget", filters.budget);
   if (filters.page) params.set("page", String(filters.page));
   if (filters.per_page) params.set("per_page", String(filters.per_page));
@@ -222,7 +279,21 @@ export async function searchRecipesAdvanced(
   }
 
   const qs = params.toString();
-  return apiClient.get<PaginatedResponse<Recipe>>(`/api/v1/recipes${qs ? `?${qs}` : ""}`);
+  const raw = await apiClient.get<Record<string, any>>(`/api/v1/recipes${qs ? `?${qs}` : ""}`);
+
+  // L'API retourne { results: [...], total, page, per_page }
+  // On normalise chaque recette pour aligner les champs
+  const rawRecipes: Record<string, unknown>[] = raw.results ?? raw.data ?? [];
+  const normalizedRecipes = rawRecipes.map(normalizeRecipe);
+
+  return {
+    data: normalizedRecipes,
+    results: normalizedRecipes,
+    total: raw.total ?? 0,
+    page: raw.page ?? 1,
+    per_page: raw.per_page ?? filters.per_page ?? 24,
+    has_next: raw.has_next ?? false,
+  } as PaginatedResponse<Recipe> & { results: Recipe[] };
 }
 
 // --- Endpoints Feedbacks ---

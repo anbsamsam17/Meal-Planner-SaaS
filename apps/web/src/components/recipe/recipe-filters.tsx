@@ -18,7 +18,7 @@ const BUDGET_OPTIONS: { value: RecipeFilters["budget"]; label: string }[] = [
 ];
 
 const DIET_OPTIONS: { value: DietaryTag; label: string }[] = [
-  { value: "vegetarian", label: "Végétarien" },
+  { value: "végétarien", label: "Végétarien" },
   { value: "vegan", label: "Vegan" },
   { value: "gluten-free", label: "Sans gluten" },
   { value: "lactose-free", label: "Sans lactose" },

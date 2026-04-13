@@ -112,7 +112,8 @@ export function RecipesExplorer() {
     q: debouncedQuery || undefined,
     ...(activeQuickFilter === "quick" && { max_time: 15 }),
     ...(activeQuickFilter === "dessert" && { q: "dessert" }),
-    ...(activeQuickFilter === "vegetarian" && { diet: "vegetarian" }),
+    // BUG-008 fix : la DB contient surtout "végétarien" (FR), pas "vegetarian" (EN)
+    ...(activeQuickFilter === "vegetarian" && { diet: "végétarien" }),
     ...(activeQuickFilter === "easy" && { difficulty: 2 }),
     per_page: PER_PAGE,
     page,

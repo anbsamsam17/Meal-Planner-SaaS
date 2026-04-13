@@ -84,14 +84,14 @@ export function RecipeTabsClient({ recipe }: RecipeTabsClientProps) {
         {/* Ingrédients */}
         <RadixTabs.Content value="ingredients" className="focus-visible:outline-none">
           <IngredientList
-            ingredients={recipe.ingredients}
-            servings={recipe.servings}
+            ingredients={recipe.ingredients ?? []}
+            servings={recipe.servings ?? 1}
           />
         </RadixTabs.Content>
 
         {/* Instructions */}
         <RadixTabs.Content value="instructions" className="focus-visible:outline-none">
-          <InstructionSteps instructions={recipe.instructions} />
+          <InstructionSteps instructions={recipe.instructions ?? []} />
         </RadixTabs.Content>
 
         {/* Nutrition */}
@@ -99,8 +99,8 @@ export function RecipeTabsClient({ recipe }: RecipeTabsClientProps) {
           {recipe.nutrition ? (
             <div className="space-y-4">
               <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                Valeurs nutritionnelles pour {recipe.servings} portion
-                {recipe.servings > 1 ? "s" : ""}
+                Valeurs nutritionnelles pour {recipe.servings ?? 1} portion
+                {(recipe.servings ?? 1) > 1 ? "s" : ""}
               </p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {NUTRITION_ITEMS.map((item) => {

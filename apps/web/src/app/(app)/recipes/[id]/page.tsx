@@ -53,16 +53,31 @@ async function fetchRecipe(id: string) {
 
     const data = await response.json();
 
-    // Normalisation défensive : certains endpoints retournent photo_url au lieu de image_url
-    // On unifie ici pour que le reste du composant ne voie que image_url
+    // Normalisation défensive : mapper les champs API bruts vers les noms frontend
+    // BUG-005/010/011 fix : aligner photo_url, temps, cuisine, difficulty
     if (data && data.photo_url !== undefined && data.image_url === undefined) {
       data.image_url = data.photo_url ?? null;
     }
 
-    // Garantir que les tableaux sont bien des tableaux (jamais null/undefined)
     if (data) {
+      // Normaliser les champs de temps (API: *_min → Frontend: *_minutes)
+      data.total_time_minutes = data.total_time_min ?? data.total_time_minutes ?? null;
+      data.prep_time_minutes = data.prep_time_min ?? data.prep_time_minutes ?? null;
+      data.cook_time_minutes = data.cook_time_min ?? data.cook_time_minutes ?? null;
+
+      // Normaliser cuisine (API: cuisine_type → Frontend: cuisine)
+      data.cuisine = data.cuisine_type ?? data.cuisine ?? null;
+
+      // Normaliser dietary_tags (API: tags → Frontend: dietary_tags)
+      data.dietary_tags = Array.isArray(data.tags) ? data.tags : (Array.isArray(data.dietary_tags) ? data.dietary_tags : []);
+
+      // Normaliser rating (API: quality_score 0-1 → Frontend: rating_average 1-5)
+      if (data.quality_score != null && data.rating_average == null) {
+        data.rating_average = data.quality_score * 5;
+      }
+
+      // Garantir que les tableaux sont bien des tableaux (jamais null/undefined)
       data.instructions = Array.isArray(data.instructions) ? data.instructions : [];
-      data.dietary_tags = Array.isArray(data.dietary_tags) ? data.dietary_tags : [];
 
       // Normalisation des ingrédients : l'API retourne le format brut du catalogue
       // { ingredient_id, canonical_name, quantity, unit, notes, position }

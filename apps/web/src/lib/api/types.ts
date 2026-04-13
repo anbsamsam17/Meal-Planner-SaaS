@@ -9,28 +9,38 @@
 export interface Recipe {
   id: string;
   title: string;
+  slug?: string;
   // description peut être null si la recette n'en a pas encore (API retourne null)
-  description: string | null;
-  // photo_url est le champ canonique retourné par l'API — à utiliser en priorité
-  photo_url?: string | null;
-  // image_url : alias de compatibilité — normalisé depuis photo_url dans fetchRecipe (page.tsx)
-  // Utiliser photo_url en priorité : `recipe.photo_url || recipe.image_url || placeholder`
+  description?: string | null;
+
+  // --- Champs normalisés (utilisés par les composants) ---
   image_url?: string | null;
-  prep_time_minutes: number | null;
-  cook_time_minutes: number | null;
-  total_time_minutes: number | null;
-  servings: number;
-  difficulty: "easy" | "medium" | "hard" | null;
-  cuisine: string | null; // Ex: "Français", "Italien", "Japonais"
-  dietary_tags: DietaryTag[];
-  ingredients: Ingredient[];
-  instructions: Instruction[];
-  nutrition: NutritionInfo | null;
-  rating_average: number | null; // 1.0 - 5.0
-  rating_count: number;
-  source_url: string | null;
-  created_at: string; // ISO date
-  updated_at: string; // ISO date
+  total_time_minutes?: number | null;
+  prep_time_minutes?: number | null;
+  cook_time_minutes?: number | null;
+  cuisine?: string | null; // Ex: "française", "italienne", "japonaise"
+  difficulty?: "easy" | "medium" | "hard" | number | null;
+  dietary_tags?: string[];
+  rating_average?: number | null; // 1.0 - 5.0
+  rating_count?: number;
+  servings?: number | null;
+
+  // --- Champs API originaux (pour compatibilité directe avec les réponses backend) ---
+  photo_url?: string | null;
+  total_time_min?: number | null;
+  prep_time_min?: number | null;
+  cook_time_min?: number | null;
+  cuisine_type?: string | null;
+  tags?: string[];
+  quality_score?: number | null;
+
+  // --- Champs structurés ---
+  ingredients?: Ingredient[];
+  instructions?: Instruction[];
+  nutrition?: NutritionInfo | null;
+  source_url?: string | null;
+  created_at?: string; // ISO date
+  updated_at?: string; // ISO date
 }
 
 // Ingrédient normalisé
@@ -149,7 +159,10 @@ export interface RecipeFeedback {
 // --- Types paginés ---
 
 export interface PaginatedResponse<T> {
+  // Champ normalisé (frontend)
   data: T[];
+  // Champ API original (backend retourne "results")
+  results?: T[];
   total: number;
   page: number;
   per_page: number;
@@ -264,6 +277,8 @@ export interface RecipeFilters {
 
 export type DietaryTag =
   | "vegetarian"
+  | "végétarien"
+  | "vegetarien"
   | "vegan"
   | "gluten-free"
   | "gluten_free"

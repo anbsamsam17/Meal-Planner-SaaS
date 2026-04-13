@@ -27,26 +27,30 @@ function getPlaceholderImage(id: string): string {
   return PLACEHOLDER_IMAGES[index] ?? PLACEHOLDER_IMAGES[0];
 }
 
-// Calcule le badge coût estimé basé sur dietary_tags et difficulty
-// "économique" dans dietary_tags → €, difficulty "hard" → €€€, sinon → €€
+// Calcule le badge coût estimé basé sur dietary_tags/tags et difficulty
+// Supporte les deux formats : normalisé (dietary_tags) et API brut (tags)
 function getCostBadge(recipe: Recipe): string {
-  const tags = recipe.dietary_tags ?? [];
-  if (tags.includes("vegetarian") || (tags as string[]).includes("économique")) {
-    return "€";
+  const tags: string[] = recipe.dietary_tags ?? recipe.tags ?? [];
+  if (tags.includes("vegetarian") || tags.includes("végétarien") || tags.includes("vegetarien") || tags.includes("économique")) {
+    return "\u20AC";
   }
-  if (recipe.difficulty === "hard") {
-    return "€€€";
+  // Gérer difficulty en string OU en number (API retourne int 1-5)
+  const diff = recipe.difficulty;
+  if (diff === "hard" || (typeof diff === "number" && diff >= 4)) {
+    return "\u20AC\u20AC\u20AC";
   }
-  return "€€";
+  return "\u20AC\u20AC";
 }
 
-// Temps d'affichage priorité : total_time_minutes > prep + cook > null
+// Temps d'affichage priorité : total_time_minutes > total_time_min > prep + cook > null
+// Supporte les deux formats : normalisé et API brut
 function getDisplayTime(recipe: Recipe): number | null {
-  if (recipe.total_time_minutes != null && recipe.total_time_minutes > 0) {
-    return recipe.total_time_minutes;
+  const totalTime = recipe.total_time_minutes ?? recipe.total_time_min ?? null;
+  if (totalTime != null && totalTime > 0) {
+    return totalTime;
   }
-  const prep = recipe.prep_time_minutes ?? 0;
-  const cook = recipe.cook_time_minutes ?? 0;
+  const prep = recipe.prep_time_minutes ?? recipe.prep_time_min ?? 0;
+  const cook = recipe.cook_time_minutes ?? recipe.cook_time_min ?? 0;
   const combined = prep + cook;
   return combined > 0 ? combined : null;
 }
@@ -108,11 +112,11 @@ export function RecipeCard({
               ★
             </span>
             <span className="text-xs font-semibold text-white">{rating}</span>
-            {recipe.rating_count > 0 && (
+            {(recipe.rating_count ?? 0) > 0 && (
               <span className="text-xs text-white/70">
                 (
-                {recipe.rating_count >= 1000
-                  ? `${(recipe.rating_count / 1000).toFixed(1)}k`
+                {(recipe.rating_count ?? 0) >= 1000
+                  ? `${((recipe.rating_count ?? 0) / 1000).toFixed(1)}k`
                   : recipe.rating_count}
                 )
               </span>
@@ -122,9 +126,10 @@ export function RecipeCard({
       </div>
 
       {/* Catégorie — small caps uppercase terracotta outline */}
-      {recipe.cuisine && (
+      {/* Supporte les deux formats : normalisé (cuisine) et API brut (cuisine_type) */}
+      {(recipe.cuisine || recipe.cuisine_type) && (
         <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-[#857370]">
-          {recipe.cuisine}
+          {recipe.cuisine || recipe.cuisine_type}
         </p>
       )}
 
