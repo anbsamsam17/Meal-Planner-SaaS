@@ -137,16 +137,17 @@ export interface GeneratePlanParams {
   style?: string | null;
 }
 
-// Calcule le lundi de la semaine courante (ou le prochain si on est après lundi)
-// Utilisé pour construire le body de POST /plans/generate
-export function getNextMonday(): string {
+// Calcule le lundi de la semaine EN COURS (pas la semaine prochaine).
+// Le backend GET /me/current cherche week_start = lundi de cette semaine,
+// donc POST /generate doit envoyer le meme lundi pour que le plan soit trouvable.
+export function getCurrentMonday(): string {
   const today = new Date();
   const dayOfWeek = today.getDay(); // 0 = dimanche, 1 = lundi, ...
-  // Si on est lundi → 0 jours d'écart, sinon calculer le prochain lundi
-  const daysUntilMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : 8 - dayOfWeek;
-  const nextMonday = new Date(today);
-  nextMonday.setDate(today.getDate() + daysUntilMonday);
-  return nextMonday.toISOString().split("T")[0] as string;
+  // Nombre de jours depuis lundi : dim=6, lun=0, mar=1, mer=2, ...
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - daysSinceMonday);
+  return monday.toISOString().split("T")[0] as string;
 }
 
 export interface RecipeSearchParams {
@@ -186,7 +187,7 @@ export async function updateMemberPreferences(
 // Etendu : accepte filtres optionnels max_time, budget, style depuis le modal "4 questions"
 export async function generatePlan(params?: GeneratePlanParams): Promise<GeneratePlanResponse> {
   const body: GeneratePlanBody = {
-    week_start: params?.week_start ?? getNextMonday(),
+    week_start: params?.week_start ?? getCurrentMonday(),
     ...(params?.num_dinners != null && { num_dinners: params.num_dinners }),
     ...(params?.max_time != null && { max_time: params.max_time }),
     ...(params?.budget != null && { budget: params.budget }),
@@ -245,8 +246,9 @@ export async function getPlan(id: string): Promise<PlanDetail> {
   return normalizePlanDetail(raw);
 }
 
-export async function getCurrentPlan(): Promise<PlanDetail> {
-  const raw = await apiClient.get<Record<string, unknown>>("/api/v1/plans/me/current");
+export async function getCurrentPlan(): Promise<PlanDetail | null> {
+  const raw = await apiClient.get<Record<string, unknown> | null>("/api/v1/plans/me/current");
+  if (!raw || typeof raw !== "object" || !("id" in raw)) return null;
   return normalizePlanDetail(raw);
 }
 

@@ -10,7 +10,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { apiClient, ApiRequestError } from "@/lib/api/client";
-import { getNextMonday } from "@/lib/api/endpoints";
+import { getCurrentMonday } from "@/lib/api/endpoints";
 import { toast } from "sonner";
 
 // --- Types ---
@@ -208,7 +208,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           // FIX Phase 1 mature (review 2026-04-12) — Mismatch E : body { week_start } obligatoire
           const generateResponse = await apiClient.post<GeneratePlanResponse>(
             "/api/v1/plans/generate",
-            { week_start: getNextMonday() },
+            { week_start: getCurrentMonday() },
           );
 
           set({ generatedTaskId: generateResponse.task_id });
