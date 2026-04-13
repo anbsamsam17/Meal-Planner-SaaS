@@ -96,7 +96,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         from src.db.session import engine as db_engine
         app.state.db_engine = db_engine
         app.state.db_session_factory = AsyncSessionLocal
-        logger.info("database_pool_connected_from_db_module")
+        db_url = os.environ.get("DATABASE_URL", "NOT SET")
+        logger.info("database_pool_connected_from_db_module", db_host=db_url.split("@")[-1].split("/")[0] if "@" in db_url else "unknown")
     except ImportError:
         # Fallback : créer le pool directement si src.db.session n'est pas disponible
         engine = create_async_engine(

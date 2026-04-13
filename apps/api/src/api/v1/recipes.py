@@ -386,7 +386,7 @@ async def search_recipes(
     offset = (page - 1) * per_page
 
     if db_session is None:
-        logger.debug("search_recipes_no_db")
+        logger.warning("search_recipes_no_db_session", hint="app.state.db_session_factory est None — la DB n'est pas connectée")
         return RecipeSearchResult(
             results=[], total=0, query=q, page=page, per_page=per_page
         )
