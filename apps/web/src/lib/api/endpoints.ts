@@ -140,14 +140,21 @@ export interface GeneratePlanParams {
 // Calcule le lundi de la semaine EN COURS (pas la semaine prochaine).
 // Le backend GET /me/current cherche week_start = lundi de cette semaine,
 // donc POST /generate doit envoyer le meme lundi pour que le plan soit trouvable.
+// IMPORTANT : tout est calcule en UTC pour eviter la desynchro avec le backend.
+// Si on utilisait getDay() (heure locale) + toISOString() (UTC), un utilisateur en UTC+2
+// a 00h30 lundi local verrait toISOString() retourner la date du dimanche UTC — mismatch fatal.
 export function getCurrentMonday(): string {
-  const today = new Date();
-  const dayOfWeek = today.getDay(); // 0 = dimanche, 1 = lundi, ...
-  // Nombre de jours depuis lundi : dim=6, lun=0, mar=1, mer=2, ...
-  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - daysSinceMonday);
-  return monday.toISOString().split("T")[0] as string;
+  const now = new Date();
+  // Utiliser les methodes UTC pour rester coherent avec le backend (qui travaille en UTC)
+  const dayOfWeekUTC = now.getUTCDay(); // 0 = dimanche, 1 = lundi, ... (UTC)
+  const daysSinceMonday = dayOfWeekUTC === 0 ? 6 : dayOfWeekUTC - 1;
+  const monday = new Date(now);
+  monday.setUTCDate(now.getUTCDate() - daysSinceMonday);
+  // Formatter manuellement en YYYY-MM-DD UTC (pas de conversion TZ via toISOString)
+  const y = monday.getUTCFullYear();
+  const m = String(monday.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(monday.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 export interface RecipeSearchParams {

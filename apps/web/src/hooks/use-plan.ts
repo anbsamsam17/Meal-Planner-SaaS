@@ -5,7 +5,7 @@
 // Refonte dashboard (2026-04-12) : filtres generation, suggestions, ajout repas samedi/dimanche
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getCurrentPlan,
@@ -17,7 +17,7 @@ import {
   getRecipeSuggestions,
   addMealToPlan,
 } from "@/lib/api/endpoints";
-import type { PlanDetail, GeneratePlanParams } from "@/lib/api/endpoints";
+import type { PlanDetail, GeneratePlanParams, GeneratePlanResponse } from "@/lib/api/endpoints";
 import type { Recipe } from "@/lib/api/types";
 import { toast } from "sonner";
 
@@ -60,6 +60,8 @@ export function useCurrentPlan() {
     staleTime: 2 * 60 * 1000, // 2 minutes
     // Polling toutes les 3s UNIQUEMENT pendant la generation
     refetchInterval: isGenerating ? POLLING_INTERVAL_MS : false,
+    // Continuer le polling meme si l'onglet est en arriere-plan
+    refetchIntervalInBackground: isGenerating,
     retry: (failureCount, err) => {
       if (err.message.includes("401") || err.message.includes("403")) return false;
       return failureCount < 2;
@@ -93,11 +95,12 @@ export function useCurrentPlan() {
   // Demarrer le polling (appele depuis useGeneratePlan).
   // Capture l'ID du plan actuel pour que le useEffect puisse distinguer
   // l'ancien plan (cache stale) du nouveau plan (apres refetch).
-  const startPolling = (currentPlanId?: string | null) => {
+  // Memoize avec useCallback pour eviter des re-rendus inutiles des composants consumers.
+  const startPolling = useCallback((currentPlanId?: string | null) => {
     previousPlanIdRef.current = currentPlanId ?? null;
     pollingStartRef.current = Date.now();
     setIsGenerating(true);
-  };
+  }, []);
 
   return { ...query, isGenerating, startPolling };
 }
@@ -126,17 +129,34 @@ export function useGeneratePlan(startPolling?: (currentPlanId?: string | null) =
 
   return useMutation({
     mutationFn: (params?: GeneratePlanParams) => generatePlan(params),
-    onSuccess: (_data, _variables, _context) => {
+    onSuccess: (data: GeneratePlanResponse, _variables, _context) => {
+      // Cas 1 : le backend a retourne le plan directement dans la reponse (generation synchrone).
+      // Le champ "id" sur la reponse indique que c'est un PlanDetail complet, pas un { task_id }.
+      // On injecte directement dans le cache — pas besoin de polling.
+      const responseAsAny = data as unknown as Record<string, unknown>;
+      if (responseAsAny && typeof responseAsAny === "object" && "id" in responseAsAny && !("task_id" in responseAsAny)) {
+        queryClient.setQueryData<PlanDetail>(PLAN_QUERY_KEYS.current, responseAsAny as unknown as PlanDetail);
+        toast.success("Votre planning est pret !");
+        return;
+      }
+
+      // Cas 2 : generation asynchrone (Celery) — le backend a retourne { task_id }.
       // Recuperer l'ID du plan actuellement en cache AVANT d'invalider.
       // On passe cet ID a startPolling pour que le useEffect de useCurrentPlan
       // sache qu'il doit attendre un plan DIFFERENT (et non s'arreter sur le stale cache).
       const cachedPlan = queryClient.getQueryData<PlanDetail | null>(PLAN_QUERY_KEYS.current);
       const previousId = cachedPlan?.id ?? null;
 
-      // Invalider le cache pour forcer un refetch au prochain poll
-      void queryClient.invalidateQueries({ queryKey: PLAN_QUERY_KEYS.current });
-      // Demarrer le polling conditionnel (toutes les 3s, timeout 60s)
-      startPolling?.(previousId);
+      // Invalider le cache puis demarrer le polling.
+      // On attend la resolution de invalidateQueries avant de demarrer le polling
+      // pour eviter que le premier refetch parte sans l'intervalle de polling actif.
+      queryClient.invalidateQueries({ queryKey: PLAN_QUERY_KEYS.current }).then(() => {
+        startPolling?.(previousId);
+      }).catch(() => {
+        // En cas d'echec de l'invalidation, demarrer quand meme le polling
+        startPolling?.(previousId);
+      });
+
       toast.info("Generation en cours...", {
         description: "Votre planning sera pret dans quelques secondes.",
       });
