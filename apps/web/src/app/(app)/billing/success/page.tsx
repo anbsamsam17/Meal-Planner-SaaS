@@ -1,37 +1,37 @@
 "use client";
 // apps/web/src/app/(app)/billing/success/page.tsx
-// Page retour après paiement Stripe réussi
-// Phase 2 — confetti Framer Motion, recap features débloquées, CTA
+// Page retour apres paiement Stripe reussi
+// Phase 2 -- confetti via @/components/motion, recap features debloquees, CTA
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { MotionDiv, MotionLi, MotionUl, AnimatePresence } from "@/components/motion";
 import { CheckCircle, BookOpen, Refrigerator, Star, Sparkles } from "lucide-react";
 
 const UNLOCKED_FEATURES = [
   {
     icon: BookOpen,
     label: "Livres PDF hebdomadaires",
-    desc: "Téléchargez votre semaine en PDF pour cuisiner sans internet.",
+    desc: "Telechargez votre semaine en PDF pour cuisiner sans internet.",
   },
   {
     icon: Refrigerator,
     label: "Mode frigo",
-    desc: "Dites ce que vous avez dans le frigo, on suggère les recettes.",
+    desc: "Dites ce que vous avez dans le frigo, on suggere les recettes.",
   },
   {
     icon: Star,
     label: "Recettes premium",
-    desc: "Accès à +500 recettes exclusives de chefs.",
+    desc: "Acces a +500 recettes exclusives de chefs.",
   },
   {
     icon: Sparkles,
-    label: "Plans illimités",
-    desc: "Générez autant de semaines que vous voulez.",
+    label: "Plans illimites",
+    desc: "Generez autant de semaines que vous voulez.",
   },
 ];
 
-// Confetti simple — 30 particules colorées en Framer Motion
+// Confetti simple -- 30 particules colorees via MotionDiv
 function Confetti() {
   const particles = Array.from({ length: 30 }, (_, i) => i);
   const colors = ["#C8674A", "#6B7F45", "#F5EFE7", "#E8C5B0", "#4A6741"];
@@ -46,7 +46,7 @@ function Confetti() {
         const size = 6 + Math.random() * 10;
 
         return (
-          <motion.div
+          <MotionDiv
             key={i}
             style={{
               position: "absolute",
@@ -81,12 +81,12 @@ export default function BillingSuccessPage() {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-cream-50 px-4 py-12">
+    <div className="relative min-h-screen bg-[#fff8f6] px-4 py-12">
       <AnimatePresence>{showConfetti && <Confetti />}</AnimatePresence>
 
       <div className="mx-auto max-w-lg">
-        {/* Icône succès animée */}
-        <motion.div
+        {/* Icone succes animee */}
+        <MotionDiv
           className="mb-6 flex justify-center"
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -95,28 +95,28 @@ export default function BillingSuccessPage() {
           <div className="flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
             <CheckCircle className="h-10 w-10 text-green-600" aria-hidden />
           </div>
-        </motion.div>
+        </MotionDiv>
 
         {/* Titre */}
-        <motion.h1
+        <MotionDiv
           className="mb-2 text-center text-2xl font-bold text-neutral-900"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          Bienvenue dans le plan Famille !
-        </motion.h1>
-        <motion.p
+          <h1>Bienvenue dans le plan Famille !</h1>
+        </MotionDiv>
+        <MotionDiv
           className="mb-8 text-center text-sm text-neutral-500"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.35 }}
         >
-          Votre abonnement est actif. Voici ce que vous venez de débloquer.
-        </motion.p>
+          <p>Votre abonnement est actif. Voici ce que vous venez de debloquer.</p>
+        </MotionDiv>
 
-        {/* Features débloquées */}
-        <motion.ul
+        {/* Features debloquees */}
+        <MotionUl
           className="mb-8 space-y-3"
           initial="hidden"
           animate="visible"
@@ -126,7 +126,7 @@ export default function BillingSuccessPage() {
           }}
         >
           {UNLOCKED_FEATURES.map(({ icon: Icon, label, desc }) => (
-            <motion.li
+            <MotionLi
               key={label}
               className="flex items-start gap-3 rounded-xl border border-neutral-100 bg-white px-4 py-3 shadow-sm"
               variants={{
@@ -141,12 +141,12 @@ export default function BillingSuccessPage() {
                 <p className="text-sm font-semibold text-neutral-900">{label}</p>
                 <p className="text-xs text-neutral-500">{desc}</p>
               </div>
-            </motion.li>
+            </MotionLi>
           ))}
-        </motion.ul>
+        </MotionUl>
 
         {/* CTA */}
-        <motion.div
+        <MotionDiv
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.9 }}
@@ -155,9 +155,9 @@ export default function BillingSuccessPage() {
             href="/dashboard"
             className="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-primary-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
           >
-            Générer ma première semaine premium
+            Generer ma premiere semaine premium
           </Link>
-        </motion.div>
+        </MotionDiv>
       </div>
     </div>
   );

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function FridgePage() {
   return (
-    <div className="min-h-screen bg-cream-50">
+    <div className="min-h-screen bg-[#fff8f6]">
       <FridgeContent />
     </div>
   );

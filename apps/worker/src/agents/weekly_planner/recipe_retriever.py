@@ -192,6 +192,8 @@ async def retrieve_candidate_recipes(
     # BUG 3 FIX (2026-04-12) : fallback sans pgvector si aucun résultat.
     # Les recettes seed en prod n'ont pas d'embeddings → JOIN recipe_embeddings = 0 lignes.
     # On retourne les meilleures recettes par quality_score sans contrainte embedding.
+    # BUG 1 FIX (2026-04-13) : passer constraints au fallback et demander 30 candidats
+    # au lieu de 5 pour permettre une sélection diversifiée par le planner.
     if not candidates:
         logger.warning(
             "recipe_retriever_no_candidates_pgvector_fallback",
@@ -201,7 +203,8 @@ async def retrieve_candidate_recipes(
         candidates = await _retrieve_by_quality_no_embedding(
             session=session,
             recent_ids=recent_ids,
-            k=min(k, 5),
+            constraints=constraints,
+            k=min(k, 30),
         )
 
     logger.info(
@@ -369,7 +372,8 @@ async def _retrieve_by_quality(
 async def _retrieve_by_quality_no_embedding(
     session: AsyncSession,
     recent_ids: list[str],
-    k: int = 5,
+    constraints: HouseholdConstraints | None = None,
+    k: int = 30,
 ) -> list[dict]:
     """
     Fallback ultime : classement par quality_score SANS JOIN recipe_embeddings.
@@ -378,20 +382,42 @@ async def _retrieve_by_quality_no_embedding(
     n'ont pas encore d'embeddings pgvector. Retourne les k meilleures recettes
     par quality_score depuis la table recipes directement.
 
+    BUG 1 FIX (2026-04-13) : le fallback applique désormais les contraintes
+    du foyer (temps max, tags exclus) et retourne 30 candidats au lieu de 5,
+    avec un ORDER BY RANDOM() pour la diversité cuisine.
+
     Args:
         session: Session SQLAlchemy async.
         recent_ids: IDs à exclure (anti-répétition).
-        k: Nombre de candidates (plafonné à 5 pour le fallback).
+        constraints: Contraintes du foyer (temps, tags exclus, etc.).
+        k: Nombre de candidates (défaut 30 pour un choix diversifié).
 
     Returns:
         Liste de dicts recettes candidates (sans champ distance).
     """
     params: dict = {"quality_min": 0.6, "k": k}
 
-    excluded_ids_clause = ""
+    # Construction dynamique des clauses WHERE
+    extra_clauses: list[str] = []
+
     if recent_ids:
-        excluded_ids_clause = "AND r.id::text != ALL(:recent_ids)"
+        extra_clauses.append("AND r.id::text != ALL(:recent_ids)")
         params["recent_ids"] = recent_ids
+
+    if constraints is not None:
+        # Filtre temps de cuisson max
+        if constraints.time_max_min and constraints.time_max_min < 999:
+            extra_clauses.append(
+                "AND (r.total_time_min IS NULL OR r.total_time_min <= :time_max)"
+            )
+            params["time_max"] = constraints.time_max_min
+
+        # Exclusion de tags (allergies, régimes)
+        if constraints.excluded_tags:
+            extra_clauses.append("AND NOT (r.tags && :excluded_tags)")
+            params["excluded_tags"] = constraints.excluded_tags
+
+    extra_where = "\n          ".join(extra_clauses)
 
     sql = f"""
         SELECT
@@ -409,8 +435,8 @@ async def _retrieve_by_quality_no_embedding(
             0.0 AS distance
         FROM recipes r
         WHERE r.quality_score >= :quality_min
-          {excluded_ids_clause}
-        ORDER BY r.quality_score DESC
+          {extra_where}
+        ORDER BY RANDOM()
         LIMIT :k
     """
 
@@ -420,6 +446,8 @@ async def _retrieve_by_quality_no_embedding(
     logger.info(
         "recipe_retriever_no_embedding_fallback",
         returned=len(rows),
+        k_requested=k,
+        has_constraints=constraints is not None,
         hint="Recettes retournées sans embedding — lancer le pipeline RECIPE_SCOUT pour générer les embeddings.",
     )
 

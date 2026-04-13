@@ -18,7 +18,7 @@ const MISSED_FEATURES = [
 
 export default function BillingCancelPage() {
   return (
-    <div className="min-h-screen bg-cream-50 px-4 py-12">
+    <div className="min-h-screen bg-[#fff8f6] px-4 py-12">
       <div className="mx-auto max-w-lg">
         {/* Icône */}
         <div className="mb-6 flex justify-center">

@@ -6,6 +6,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
+import { OnboardingProgressBar } from "@/components/onboarding/progress-bar";
 
 export const metadata: Metadata = {
   title: {
@@ -38,23 +39,8 @@ export default function OnboardingLayout({ children }: OnboardingLayoutProps) {
         <div className="h-11 w-11" aria-hidden="true" />
       </header>
 
-      {/* Barre de progression — 3 étapes */}
-      <div className="px-6 py-4" role="progressbar" aria-label="Progression de l'inscription" aria-valuemin={0} aria-valuemax={3}>
-        <div className="mx-auto flex max-w-sm items-center gap-2">
-          {[1, 2, 3].map((step) => (
-            <div
-              key={step}
-              className="h-1.5 flex-1 rounded-full bg-neutral-200"
-              aria-hidden="true"
-            >
-              <div
-                className="h-full rounded-full bg-primary-500 transition-all duration-slow"
-                style={{ width: "0%" }} // Géré dynamiquement par le composant enfant via le stepper
-              />
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Barre de progression — 3 étapes (Client Component pour usePathname) */}
+      <OnboardingProgressBar />
 
       {/* Contenu de l'étape courante */}
       <main id="main-content" className="flex flex-1 flex-col">

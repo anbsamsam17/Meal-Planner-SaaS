@@ -25,7 +25,7 @@ function UpgradePrompt({ requiredPlan, featureLabel }: UpgradePromptProps) {
   const planLabel = requiredPlan === "famille" ? "Famille (9,99 €/mois)" : "Coach";
 
   return (
-    <div className="relative flex flex-col items-center justify-center rounded-xl border border-dashed border-primary-300 bg-cream-50 px-6 py-10 text-center">
+    <div className="relative flex flex-col items-center justify-center rounded-xl border border-dashed border-primary-300 bg-[#fff8f6] px-6 py-10 text-center">
       {/* Icône cadenas */}
       <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary-100">
         <Lock className="h-6 w-6 text-primary-600" aria-hidden="true" />

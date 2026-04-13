@@ -290,7 +290,12 @@ export type DietaryTag =
   | "no_seafood"
   | "nut-free"
   | "nut_free"
-  | "halal";
+  | "halal"
+  | "dessert"
+  | "plat"
+  | "accompagnement"
+  | "entree"
+  | "petit-dejeuner";
 
 export type IngredientCategory =
   | "vegetables"

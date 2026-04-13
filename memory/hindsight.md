@@ -103,6 +103,18 @@ Claude doit ajouter une entrée à la fin de chaque session significative :
 
 ---
 
+## 2026-04-13 — Fix 5 bugs audit backend/DB (backend-developer)
+
+**Erreur commise** : Premier script BUG 2 utilisait `ri.id` alors que `recipe_ingredients` a une cle composite `(recipe_id, ingredient_id)` sans colonne `id`.
+**Regle a retenir** : Toujours lire le modele ORM (`apps/api/src/db/models/recipe.py`) avant d'ecrire du SQL sur les tables du catalogue. Les cles primaires composites ne sont pas evidentes.
+**Comment l'eviter** : Verifier `__tablename__` + les `primary_key=True` dans le modele ORM.
+
+**Erreur commise** : Le batch UPDATE via VALUES avec `::uuid` cast dans SQLAlchemy `text()` provoque une erreur de syntaxe asyncpg car `:` est interprete comme un parametre nomme.
+**Regle a retenir** : Avec SQLAlchemy text() + asyncpg, eviter les casts `::type` dans des requetes dynamiques avec beaucoup de parametres. Utiliser une table temporaire + INSERT batch + UPDATE FROM a la place.
+**Comment l'eviter** : Pour les mises a jour massives, toujours privilegier CREATE TEMP TABLE + INSERT par batch + UPDATE FROM (pattern fiable et performant).
+
+---
+
 ## 2026-04-11 — Initialisation du projet
 
 **Ce qui a bien marché** : Génération automatique de la structure de fichiers via Claude Prompt Optimizer.

@@ -16,6 +16,19 @@ links:
 
 ---
 
+## Session du : 2026-04-13 — Fix 5 bugs audit backend/DB — backend-developer
+
+**Scope** : `apps/worker/src/agents/weekly_planner/recipe_retriever.py` + SQL direct Supabase
+**Statut** : Termine — 1 fichier code modifie + 3 corrections SQL en base
+
+**BUG 1** : Fallback `_retrieve_by_quality_no_embedding` ameliore — accepte `constraints` (time_max, excluded_tags), retourne 30 candidats au lieu de 5, ORDER BY RANDOM().
+**BUG 2** : Parsing du champ `unit` de `recipe_ingredients` — 5341/6021 lignes corrigees, 85 valeurs distinctes (avant: 1).
+**BUG 3** : 10 cuisine_types traduits EN->FR (100 recettes), 0 EN restants.
+**BUG 4** : quality_score varie [0.70, 0.95], 26 valeurs distinctes (avant: 1 seule a 0.82).
+**BUG 5** : cook_time recalcule par difficulte, 28 recettes <= 30 min (avant: 1), median total_time 61 min (avant: 107).
+
+---
+
 ## Session du : 2026-04-12 — Refonte majeure page recettes (5 corrections) — nextjs-developer
 
 **Scope** : `apps/web/src/**`

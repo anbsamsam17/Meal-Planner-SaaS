@@ -272,10 +272,10 @@ export async function searchRecipesAdvanced(
   if (filters.budget) params.set("budget", filters.budget);
   if (filters.page) params.set("page", String(filters.page));
   if (filters.per_page) params.set("per_page", String(filters.per_page));
-  // diet peut être un tableau
+  // L'API n'accepte qu'un seul diet (str | None) -- envoyer uniquement le premier
   if (filters.diet) {
-    const diets = Array.isArray(filters.diet) ? filters.diet : [filters.diet];
-    diets.forEach((d) => params.append("diet", d));
+    const firstDiet = Array.isArray(filters.diet) ? filters.diet[0] : filters.diet;
+    if (firstDiet) params.set("diet", firstDiet);
   }
 
   const qs = params.toString();

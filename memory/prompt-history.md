@@ -14,6 +14,20 @@ links:
 > Historique des prompts optimisés utilisés sur ce projet.
 > Ajoute tes nouveaux prompts en haut du fichier (ordre anti-chronologique).
 
+## 2026-04-13 — Fix 5 bugs audit backend/DB (backend-developer)
+
+**Agent** : backend-developer
+**Scope** : `apps/worker/src/agents/weekly_planner/recipe_retriever.py` + SQL Supabase
+**Resultat** :
+- BUG 1 : `_retrieve_by_quality_no_embedding` accepte constraints, 30 candidats, ORDER BY RANDOM()
+- BUG 2 : Parsing unit -> quantity+unit sur recipe_ingredients (5341 lignes, 85 valeurs distinctes)
+- BUG 3 : 10 cuisine_types traduits (100 recettes)
+- BUG 4 : quality_score varie [0.70-0.95] (26 valeurs distinctes)
+- BUG 5 : cook_time recalcule par difficulte (28 recettes <= 30min)
+- Scripts de migration : `scripts/fix_audit_bugs.py`, `scripts/fix_bug5_deeper.py`, `scripts/fix_bug2_quantities.py`
+
+---
+
 ## 2026-04-12 — Fix 4 bugs page recettes frontend (nextjs-developer)
 
 **Agent** : nextjs-developer

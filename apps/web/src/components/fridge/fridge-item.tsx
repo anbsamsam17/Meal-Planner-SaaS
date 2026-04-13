@@ -4,7 +4,7 @@
 // Phase 2
 
 import { useRef } from "react";
-import { motion, useMotionValue, useTransform, animate } from "framer-motion";
+import { MotionDiv, MotionArticle, useMotionValue, useTransform, animate } from "@/components/motion";
 import { Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FridgeItem } from "@/lib/api/types";
@@ -68,16 +68,16 @@ export function FridgeItemCard({ item, onDelete, isDeleting }: FridgeItemCardPro
   return (
     <div ref={constraintsRef} className="relative overflow-hidden rounded-xl">
       {/* Arrière-plan rouge (révélé au swipe) */}
-      <motion.div
+      <MotionDiv
         className="absolute inset-0 flex items-center justify-end rounded-xl bg-red-500 px-4"
         style={{ opacity: deleteOpacity }}
         aria-hidden
       >
         <Trash2 className="h-5 w-5 text-white" />
-      </motion.div>
+      </MotionDiv>
 
       {/* Contenu draggable */}
-      <motion.article
+      <MotionArticle
         style={{ x }}
         drag="x"
         dragConstraints={{ left: -120, right: 0 }}
@@ -122,7 +122,7 @@ export function FridgeItemCard({ item, onDelete, isDeleting }: FridgeItemCardPro
         >
           <Trash2 className="h-4 w-4" aria-hidden />
         </button>
-      </motion.article>
+      </MotionArticle>
     </div>
   );
 }

@@ -65,9 +65,20 @@ export const MotionButton = dynamic<HTMLMotionProps<"button">>(
   { ssr: false, loading: () => null },
 );
 
+// --- MotionArticle ---
+export const MotionArticle = dynamic<HTMLMotionProps<"article">>(
+  () => import("framer-motion").then((mod) => mod.motion.article),
+  { ssr: false, loading: () => null },
+);
+
 // --- AnimatePresence ---
 // Composant de transition montage/démontage — nécessite aussi un import dynamique
 export const AnimatePresence = dynamic<AnimatePresenceProps & { children?: ReactNode }>(
   () => import("framer-motion").then((mod) => mod.AnimatePresence),
   { ssr: false, loading: () => null },
 );
+
+// --- Hooks Framer Motion (re-exports) ---
+// Pour les composants qui ont besoin de useMotionValue, useTransform, animate
+// On les re-exporte depuis ce module pour centraliser l'import
+export { useMotionValue, useTransform, animate } from "framer-motion";

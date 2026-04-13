@@ -7,6 +7,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { createServerClient } from "@/lib/supabase/server";
 import { DashboardContent } from "./dashboard-content";
+import { WeekNavigator } from "@/components/dashboard/week-navigator";
 
 export const metadata: Metadata = {
   title: "Planning de la semaine",
@@ -86,27 +87,8 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        {/* Navigation semaine — Client Component imbriqué pour les interactions */}
-        <div className="flex items-center gap-2" aria-label="Navigation entre semaines">
-          <button
-            className="flex h-11 w-11 items-center justify-center rounded-lg border border-neutral-200
-              text-neutral-600 transition-colors hover:bg-neutral-100
-              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500
-              dark:border-neutral-700 dark:text-neutral-400"
-            aria-label="Semaine précédente"
-          >
-            ←
-          </button>
-          <button
-            className="flex h-11 w-11 items-center justify-center rounded-lg border border-neutral-200
-              text-neutral-600 transition-colors hover:bg-neutral-100
-              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500
-              dark:border-neutral-700 dark:text-neutral-400"
-            aria-label="Semaine suivante"
-          >
-            →
-          </button>
-        </div>
+        {/* Navigation semaine — Client Component avec state weekOffset */}
+        <WeekNavigator />
       </div>
 
       {/* Contenu du dashboard — Client Component pour les mutations */}
