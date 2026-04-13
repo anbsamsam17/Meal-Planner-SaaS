@@ -14,6 +14,22 @@ links:
 > Historique des prompts optimisés utilisés sur ce projet.
 > Ajoute tes nouveaux prompts en haut du fichier (ordre anti-chronologique).
 
+## 2026-04-12 — Import Spoonacular API vers PostgreSQL Supabase (backend-developer)
+
+**Agent** : backend-developer
+**Scope** : `apps/worker/src/scripts/import_spoonacular.py` (créé), `apps/worker/src/agents/recipe_scout/tasks.py` (tâche Celery ajoutée), `apps/web/next.config.mjs` (remotePattern + CSP img.spoonacular.com)
+**Résultat** : Script CLI complet + tâche Celery `recipe_scout.import_from_spoonacular`. Gestion quota 150 req/jour, upsert idempotent (slug + source_url), mapping cuisine EN→FR, extraction tags, instructions JSONB, ingrédients avec quantity/unit conformes au schéma DB.
+
+---
+
+## 2026-04-12 — Seed SQL 75 recettes multi-cuisines Presto (backend-developer)
+
+**Agent** : backend-developer
+**Scope** : `infra/docker/init-scripts/postgres/05-rich-seed-recipes.sql`
+**Résultat** : 75 recettes insérées — 18 françaises, 12 italiennes (avec aglio e olio + bruschetta champignons), 7 mexicaines, 7 indiennes, 6 libanaises, 5 internationales, 3 japonaises, 2 thaïlandaises + 1 vietnamienne + 1 grecque + 1 anglaise. ON CONFLICT DO NOTHING, sans total_time_min (generated column). Fichier prêt pour Supabase SQL Editor.
+
+---
+
 ## 2026-04-12 — Intégration design premium food Presto (nextjs-developer)
 
 **Agent** : nextjs-developer

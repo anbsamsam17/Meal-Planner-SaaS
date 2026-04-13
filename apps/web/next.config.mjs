@@ -25,7 +25,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       // data: requis pour les fonts en base64 inline
       "font-src 'self' https://fonts.gstatic.com data:",
-      "img-src 'self' data: blob: https://*.supabase.co https://*.r2.cloudflarestorage.com https://imagedelivery.net",
+      "img-src 'self' data: blob: https://*.supabase.co https://*.r2.cloudflarestorage.com https://imagedelivery.net https://img.spoonacular.com",
       // localhost:8000 = API FastAPI en développement local
       // localhost:8001 = API FastAPI en développement local (port configuré dans .env.local)
       `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.posthog.com https://*.railway.app${isDev ? " http://localhost:8001 http://localhost:8000 ws://localhost:3000" : ""}`,
@@ -110,6 +110,13 @@ const nextConfig = {
         protocol: "https",
         hostname: "images.unsplash.com",
         pathname: "/**",
+      },
+      {
+        // Photos recettes importées depuis l'API Spoonacular
+        // Format : https://img.spoonacular.com/recipes/{id}-556x370.jpg
+        protocol: "https",
+        hostname: "img.spoonacular.com",
+        pathname: "/recipes/**",
       },
     ],
   },

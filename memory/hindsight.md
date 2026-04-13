@@ -59,6 +59,20 @@ Claude doit ajouter une entrée à la fin de chaque session significative :
 
 ---
 
+## 2026-04-12 — Import Spoonacular (backend-developer)
+
+**Erreur potentielle évitée** : La colonne `category` de la table `ingredients` est NOT NULL sans valeur par défaut en base — une insertion naive sans ce champ aurait levé une erreur PostgreSQL. Lire le modèle ORM avant d'écrire le SQL est obligatoire.
+**Règle à retenir** : Toujours lire `apps/api/src/db/models/recipe.py` avant d'écrire des INSERT sur les tables du catalogue (ingredients, recipe_ingredients, recipes). Les contraintes NOT NULL et CHECK ne sont pas toujours évidentes depuis le schéma SQL seul.
+
+**Erreur potentielle évitée** : La colonne `source` dans `recipes` (pas `source_name` comme dans le script `import_sample_recipes.py`). Le modèle ORM fait foi sur les noms de colonnes.
+
+**Erreur potentielle évitée** : `recipe_ingredients.quantity` est Numeric NOT NULL avec `CHECK (quantity > 0)`. Spoonacular peut renvoyer `amount: 0` ou `null` — forcer `quantity = 1.0` comme fallback défensif.
+
+**Ce qui a bien marché** : Exposer `run_import()` comme coroutine async réutilisable — la tâche Celery s'y branche proprement sans dupliquer la logique.
+**À ne pas répéter** : Oublier d'ajouter le domaine image dans le CSP `img-src` de `next.config.mjs` en même temps que le `remotePatterns` — les deux sont nécessaires pour que `next/image` fonctionne correctement.
+
+---
+
 ## 2026-04-11 — Initialisation du projet
 
 **Ce qui a bien marché** : Génération automatique de la structure de fichiers via Claude Prompt Optimizer.

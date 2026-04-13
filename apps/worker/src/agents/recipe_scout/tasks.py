@@ -522,6 +522,105 @@ def map_ingredients_to_off_task(self, batch_size: int = 50) -> dict[str, Any]:
 
 
 @celery_app.task(
+    name="recipe_scout.import_from_spoonacular",
+    queue="scraping",
+    bind=True,
+    max_retries=1,
+    default_retry_delay=300,
+    soft_time_limit=600,   # 10 minutes max (free tier 150 req/jour)
+    time_limit=660,
+)
+def import_from_spoonacular_task(
+    self,
+    max_recipes: int = 50,
+    cuisines: str = "",
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Importe des recettes depuis l'API Spoonacular dans PostgreSQL.
+
+    Tâche déclenchable manuellement ou via Celery Beat (batch hebdomadaire recommandé
+    pour rester dans la limite de 150 req/jour du free tier).
+
+    Args:
+        max_recipes: Nombre maximum de recettes à importer (défaut : 50).
+        cuisines: Cuisines cibles séparées par virgule. Chaîne vide = toutes les cuisines
+                  par défaut (french, italian, japanese, mexican, indian, thai, ...).
+        dry_run: Si True, simule l'import sans écriture en base (utile pour tester le quota).
+
+    Returns:
+        Dict avec les compteurs : total_fetched, inserted, skipped, errors, api_requests.
+    """
+    from src.scripts.import_spoonacular import CUISINES_DEFAULT, run_import
+
+    db_url = os.getenv("DATABASE_URL", "")
+    api_key = os.getenv("SPOONACULAR_API_KEY", "")
+
+    if not db_url:
+        logger.error("import_from_spoonacular_task_no_db_url")
+        return {"status": "error", "reason": "DATABASE_URL manquante"}
+
+    if not api_key:
+        logger.error("import_from_spoonacular_task_no_api_key")
+        return {"status": "error", "reason": "SPOONACULAR_API_KEY manquante"}
+
+    cuisines_list: list[str] = cuisines.split(",") if cuisines else CUISINES_DEFAULT
+
+    logger.info(
+        "task_import_spoonacular_start",
+        max_recipes=max_recipes,
+        cuisines=cuisines_list,
+        dry_run=dry_run,
+        task_id=self.request.id,
+    )
+
+    def _run_async() -> dict[str, Any]:
+        """Lance la coroutine async dans un event loop isolé."""
+        try:
+            return asyncio.run(
+                run_import(
+                    database_url=db_url,
+                    api_key=api_key,
+                    max_recipes=max_recipes,
+                    cuisines=cuisines_list,
+                    dry_run=dry_run,
+                )
+            )
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(
+                    run_import(
+                        database_url=db_url,
+                        api_key=api_key,
+                        max_recipes=max_recipes,
+                        cuisines=cuisines_list,
+                        dry_run=dry_run,
+                    )
+                )
+            finally:
+                loop.close()
+
+    try:
+        stats = _run_async()
+    except Exception as exc:
+        logger.error(
+            "task_import_spoonacular_error",
+            error=str(exc),
+            task_id=self.request.id,
+        )
+        raise self.retry(exc=exc)
+
+    logger.info(
+        "task_import_spoonacular_complete",
+        task_id=self.request.id,
+        **stats,
+    )
+
+    return {"status": "completed", **stats}
+
+
+@celery_app.task(
     name="src.agents.recipe_scout.tasks.run_recipe_scout_nightly",
     queue="default",
     bind=True,
