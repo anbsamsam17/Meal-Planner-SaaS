@@ -65,7 +65,17 @@ export default async function AccountPage() {
       });
 
       if (res.ok) {
-        householdData = (await res.json()) as HouseholdResponse;
+        const raw = (await res.json()) as HouseholdResponse;
+        // Defensif : s'assurer que les membres ont des tableaux valides
+        if (raw?.members && Array.isArray(raw.members)) {
+          raw.members = raw.members.map((m) => ({
+            ...m,
+            diet_tags: Array.isArray(m.diet_tags) ? m.diet_tags : [],
+            allergies: Array.isArray(m.allergies) ? m.allergies : [],
+            dislikes: Array.isArray(m.dislikes) ? m.dislikes : [],
+          }));
+        }
+        householdData = raw;
       }
     } catch {
       // Backend non disponible — afficher le profil sans les données foyer

@@ -30,21 +30,6 @@ const RAYON_LABELS: Record<IngredientCategory, string> = {
   other: "🛒 Divers",
 };
 
-function mapRayon(rayon: string): IngredientCategory {
-  const map: Record<string, IngredientCategory> = {
-    "Épicerie": "grains", "Epicerie": "grains", "Boucherie": "meat",
-    "Volaille": "meat", "Poissonnerie": "fish", "Crèmerie": "dairy",
-    "Fruits & légumes": "vegetables", "Épices": "herbs", "Herbes fraîches": "herbs",
-    "Huiles & condiments": "condiments", "Sauces": "condiments",
-  };
-  return map[rayon] ?? "other";
-}
-
-function formatQuantities(quantities: any[] | undefined): string {
-  if (!quantities || quantities.length === 0) return "";
-  return quantities.map((q: any) => `${q.quantity ?? ""} ${q.unit ?? ""}`.trim()).join(", ");
-}
-
 export default function ShoppingListPage() {
   const searchParams = useSearchParams();
   const planIdFromQuery = searchParams.get("plan");
@@ -54,18 +39,12 @@ export default function ShoppingListPage() {
   // FIX BLOQUANT 3 : PlanDetail est plat — id directement sur l'objet
   const planId = planIdFromQuery ?? currentPlan?.id ?? null;
 
-  const { data: rawItems = [], isLoading, error } = useShoppingList(planId);
+  const { data: normalizedItems = [], isLoading, error } = useShoppingList(planId);
   const toggleMutation = useToggleItem(planId ?? "");
 
-  // Normaliser les champs API → champs composant
-  const items: ShoppingListItemType[] = rawItems.map((item: any, idx: number) => ({
-    ...item,
-    id: item.id ?? item.ingredient_id ?? `item-${idx}`,
-    ingredient_name: item.ingredient_name ?? item.canonical_name ?? "Ingrédient",
-    category: mapRayon(item.rayon ?? item.category ?? "other"),
-    is_checked: item.is_checked ?? item.checked ?? false,
-    quantity_display: formatQuantities(item.quantities),
-  }));
+  // Les items sont normalises par getShoppingList() dans endpoints.ts
+  // La category est deja mappee en IngredientCategory (anglais) par mapRayonToCategory()
+  const items: ShoppingListItemType[] = normalizedItems;
 
   // Grouper par category pour le rendu
   const byCategory = new Map<IngredientCategory, ShoppingListItemType[]>();

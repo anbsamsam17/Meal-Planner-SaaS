@@ -264,8 +264,84 @@ export async function swapMeal(
   });
 }
 
+// Formate les quantites API [{quantity, unit}, ...] en string lisible
+function formatShoppingQuantities(quantities: unknown): string {
+  if (!Array.isArray(quantities) || quantities.length === 0) return "";
+  return quantities
+    .map((q: Record<string, unknown>) => `${q.quantity ?? ""} ${q.unit ?? ""}`.trim())
+    .join(", ");
+}
+
+// Mappe le label rayon francais (backend) vers IngredientCategory (frontend)
+// Le backend genere _smart_rayon() qui retourne des labels FR
+// Les categories DB sont souvent "other" pour les ingredients TheMealDB
+type ShoppingCategory = ShoppingListItem["category"];
+const RAYON_FR_TO_CATEGORY: Record<string, ShoppingCategory> = {
+  "Epicerie": "grains",
+  "Boucherie": "meat",
+  "Volaille": "meat",
+  "Poissonnerie": "fish",
+  "Fruits & legumes": "vegetables",
+  "Fruits & légumes": "vegetables",
+  "Légumes": "vegetables",
+  "Fruits": "fruits",
+  "Cremerie": "dairy",
+  "Crèmerie": "dairy",
+  "Épicerie": "grains",
+  "Épices": "herbs",
+  "Herbes fraîches": "herbs",
+  "Herbes fraiches": "herbs",
+  "Huiles & condiments": "condiments",
+  "Sauces": "condiments",
+  "Légumineuses": "legumes",
+};
+
+function mapRayonToCategory(rayon: string | undefined, category: string | undefined): ShoppingCategory {
+  // Priorite au rayon FR si disponible (plus precis que category brute de la DB)
+  if (rayon && RAYON_FR_TO_CATEGORY[rayon]) {
+    return RAYON_FR_TO_CATEGORY[rayon];
+  }
+  // Fallback sur la category brute si elle correspond a une IngredientCategory valide
+  const validCategories: ShoppingCategory[] = [
+    "vegetables", "fruits", "meat", "fish", "dairy",
+    "grains", "legumes", "condiments", "herbs", "other",
+  ];
+  if (category && validCategories.includes(category as ShoppingCategory)) {
+    return category as ShoppingCategory;
+  }
+  return "other";
+}
+
 export async function getShoppingList(planId: string): Promise<ShoppingListItem[]> {
-  return apiClient.get<ShoppingListItem[]>(`/api/v1/plans/${planId}/shopping-list`);
+  // Backend route: GET /api/v1/plans/me/{plan_id}/shopping-list
+  // Le prefix /me/ est obligatoire pour passer avant la route dynamique /{plan_id}
+  const raw = await apiClient.get<Record<string, unknown>[]>(
+    `/api/v1/plans/me/${planId}/shopping-list`,
+  );
+
+  // Normaliser les champs API bruts -> ShoppingListItem frontend
+  // L'API retourne : { ingredient_id, canonical_name, category, rayon, quantities, checked, in_fridge }
+  // Le frontend attend : { id, ingredient_name, quantity, unit, category, is_checked, is_in_stock }
+  if (!Array.isArray(raw)) return [];
+
+  return raw.map((item, idx) => {
+    const quantities = item.quantities as Array<Record<string, unknown>> | undefined;
+    const firstQ = Array.isArray(quantities) && quantities.length > 0 ? quantities[0] : null;
+
+    return {
+      id: (item.id as string) ?? (item.ingredient_id as string) ?? `item-${idx}`,
+      ingredient_name: (item.ingredient_name as string) ?? (item.canonical_name as string) ?? "Ingredient",
+      quantity: firstQ ? (typeof firstQ.quantity === "number" ? firstQ.quantity : 0) : 0,
+      unit: firstQ ? (typeof firstQ.unit === "string" ? firstQ.unit : "") : "",
+      category: mapRayonToCategory(item.rayon as string | undefined, item.category as string | undefined),
+      is_checked: (item.is_checked as boolean) ?? (item.checked as boolean) ?? false,
+      is_in_stock: (item.is_in_stock as boolean) ?? (item.in_fridge as boolean) ?? false,
+      quantity_display: formatShoppingQuantities(quantities),
+      recipe_ids: Array.isArray(item.recipe_ids) ? (item.recipe_ids as string[]) : [],
+      estimated_price: (item.estimated_price as number) ?? null,
+      open_food_facts_id: (item.open_food_facts_id as string) ?? (item.off_id as string) ?? null,
+    };
+  });
 }
 
 // --- Normalisation Recipe : mappe les champs API bruts vers les champs frontend ---

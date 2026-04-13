@@ -147,7 +147,7 @@ export function AccountContent({ user, householdData }: AccountContentProps) {
                       </span>
                     )}
                   </p>
-                  {member.diet_tags.length > 0 && (
+                  {Array.isArray(member.diet_tags) && member.diet_tags.length > 0 && (
                     <p className="mt-0.5 truncate text-xs text-neutral-400">
                       {member.diet_tags.join(", ")}
                     </p>

@@ -64,18 +64,23 @@ export function SettingsContent() {
   const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Hydration depuis les données du foyer
+  // Hydration depuis les donnees du foyer
+  // Defensif : tous les champs nullable/undefined sont proteges par des fallbacks
   useEffect(() => {
     if (!household) return;
 
     const prefs = household.preferences;
     const member = ownerMember;
 
+    // Proteger allergies : peut etre undefined si l'API ne retourne pas le champ
+    const memberAllergies = Array.isArray(member?.allergies) ? member.allergies : [];
+    const memberDietTags = Array.isArray(member?.diet_tags) ? member.diet_tags : [];
+
     setForm({
-      dietTags: member?.diet_tags ?? [],
-      allergies: member?.allergies.join(", ") ?? "",
+      dietTags: memberDietTags,
+      allergies: memberAllergies.join(", "),
       cookingTimeMax: prefs?.cooking_time_max ?? 45,
-      driveProvider: (household.household.drive_provider as DriveValue | null) ?? "none",
+      driveProvider: (household.household?.drive_provider as DriveValue | null) ?? "none",
       theme: (typeof window !== "undefined"
         ? (localStorage.getItem("presto-theme") as ThemeValue | null) ?? "system"
         : "system"),

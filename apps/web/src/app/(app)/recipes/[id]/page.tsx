@@ -1,8 +1,9 @@
 // apps/web/src/app/(app)/recipes/[id]/page.tsx
 // Fiche recette — Server Component
-// Fetch GET /api/v1/recipes/{id} côté serveur
-// Tabs Radix : Ingrédients / Instructions / Nutrition
-// Bouton noter la recette → RatingModal (Client Component)
+// Fetch GET /api/v1/recipes/{id} cote serveur
+// Design card-based mobile-first : photo 16:9, max-w-2xl centre
+// Tabs Radix : Ingredients / Instructions / Nutrition
+// Bouton noter la recette -> RatingModal (Client Component)
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -15,7 +16,7 @@ interface RecipePageProps {
   params: { id: string };
 }
 
-// Métadonnées dynamiques depuis la recette
+// Metadonnees dynamiques depuis la recette
 export async function generateMetadata({ params }: RecipePageProps): Promise<Metadata> {
   const recipe = await fetchRecipe(params.id);
   if (!recipe) return { title: "Recette introuvable" };
@@ -53,25 +54,24 @@ async function fetchRecipe(id: string) {
 
     const data = await response.json();
 
-    // Normalisation défensive : mapper les champs API bruts vers les noms frontend
-    // BUG-005/010/011 fix : aligner photo_url, temps, cuisine, difficulty
+    // Normalisation defensive : mapper les champs API bruts vers les noms frontend
     if (data && data.photo_url !== undefined && data.image_url === undefined) {
       data.image_url = data.photo_url ?? null;
     }
 
     if (data) {
-      // Normaliser les champs de temps (API: *_min → Frontend: *_minutes)
+      // Normaliser les champs de temps (API: *_min -> Frontend: *_minutes)
       data.total_time_minutes = data.total_time_min ?? data.total_time_minutes ?? null;
       data.prep_time_minutes = data.prep_time_min ?? data.prep_time_minutes ?? null;
       data.cook_time_minutes = data.cook_time_min ?? data.cook_time_minutes ?? null;
 
-      // Normaliser cuisine (API: cuisine_type → Frontend: cuisine)
+      // Normaliser cuisine (API: cuisine_type -> Frontend: cuisine)
       data.cuisine = data.cuisine_type ?? data.cuisine ?? null;
 
-      // Normaliser dietary_tags (API: tags → Frontend: dietary_tags)
+      // Normaliser dietary_tags (API: tags -> Frontend: dietary_tags)
       data.dietary_tags = Array.isArray(data.tags) ? data.tags : (Array.isArray(data.dietary_tags) ? data.dietary_tags : []);
 
-      // Normaliser rating (API: quality_score 0-1 → Frontend: rating_average 1-5)
+      // Normaliser rating (API: quality_score 0-1 -> Frontend: rating_average 1-5)
       if (data.quality_score != null && data.rating_average == null) {
         data.rating_average = Math.min(5, data.quality_score * 5);
       }
@@ -79,7 +79,7 @@ async function fetchRecipe(id: string) {
       // Garantir que les tableaux sont bien des tableaux (jamais null/undefined)
       data.instructions = Array.isArray(data.instructions) ? data.instructions : [];
 
-      // Normalisation des ingrédients : l'API retourne le format brut du catalogue
+      // Normalisation des ingredients : l'API retourne le format brut du catalogue
       // { ingredient_id, canonical_name, quantity, unit, notes, position }
       // alors que le type Ingredient frontend attend
       // { id, name, quantity, unit, note, category }
@@ -89,7 +89,7 @@ async function fetchRecipe(id: string) {
         name: (ing.canonical_name as string | undefined) ?? "",
         quantity: typeof ing.quantity === "number" ? ing.quantity : 1,
         unit: typeof ing.unit === "string" ? ing.unit : "",
-        // Afficher notes en priorité (plus descriptif), sinon canonical_name
+        // Afficher notes en priorite (plus descriptif), sinon canonical_name
         note: (ing.notes as string | undefined) ?? null,
         category: "other" as const,
         open_food_facts_id: null,
@@ -106,12 +106,12 @@ const DIFFICULTY_LABELS: Record<string, string> = {
   easy: "Facile",
   medium: "Moyen",
   hard: "Difficile",
-  // Alias numériques — certains endpoints retournent la difficulté en 1-5
-  "1": "Très facile",
+  // Alias numeriques — certains endpoints retournent la difficulte en 1-5
+  "1": "Tres facile",
   "2": "Facile",
   "3": "Moyen",
   "4": "Difficile",
-  "5": "Très difficile",
+  "5": "Tres difficile",
 };
 
 export default async function RecipePage({ params }: RecipePageProps) {
@@ -120,7 +120,7 @@ export default async function RecipePage({ params }: RecipePageProps) {
   try {
     recipe = await fetchRecipe(params.id);
   } catch {
-    // Erreur réseau ou parsing inattendue — afficher un état gracieux
+    // Erreur reseau ou parsing inattendue — afficher un etat gracieux
     return (
       <div className="flex min-h-full flex-col items-center justify-center gap-4 p-8 text-center">
         <p className="text-lg font-semibold text-neutral-700 dark:text-neutral-300">
@@ -140,7 +140,7 @@ export default async function RecipePage({ params }: RecipePageProps) {
     notFound();
   }
 
-  // Placeholder Unsplash déterministe si pas de photo
+  // Placeholder Unsplash deterministe si pas de photo
   const PLACEHOLDER_IMAGES = [
     "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=1200&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1473093226795-af9932fe5856?q=80&w=1200&auto=format&fit=crop",
@@ -153,59 +153,58 @@ export default async function RecipePage({ params }: RecipePageProps) {
     PLACEHOLDER_IMAGES[0];
   const heroImageUrl = recipe.photo_url || recipe.image_url || placeholderUrl;
 
-  // Protéger rating_average — peut être null ou undefined selon l'endpoint
-  const ratingAverage = recipe.rating_average != null ? Number(recipe.rating_average) : null;
+  // Proteger rating_average — peut etre null ou undefined selon l'endpoint
   const difficultyLabel = recipe.difficulty
     ? (DIFFICULTY_LABELS[recipe.difficulty] ?? "")
     : "";
 
+  // Temps total affiche : fallback sur prep + cook si total absent
+  const displayTime =
+    (recipe.total_time_minutes != null && recipe.total_time_minutes > 0)
+      ? recipe.total_time_minutes
+      : null;
+
   return (
-    <div className="min-h-full bg-white dark:bg-neutral-900">
-      {/* Photo hero plein ecran */}
-      <div className="relative h-[40vh] min-h-[300px] w-full overflow-hidden">
+    <div className="mx-auto max-w-2xl px-4 py-6">
+      {/* Bouton retour */}
+      <Link
+        href="/recipes"
+        className="mb-4 inline-flex items-center gap-1 text-sm text-[#857370] transition-colors hover:text-[#E2725B]"
+      >
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+        Retour aux recettes
+      </Link>
+
+      {/* Photo — ratio 16:9, coins arrondis, taille proportionnelle */}
+      <div className="relative aspect-video overflow-hidden rounded-2xl">
         <Image
           src={heroImageUrl}
           alt={recipe.title}
           fill
-          sizes="100vw"
           className="object-cover"
+          sizes="(max-width: 768px) 100vw, 672px"
           priority
         />
-
-        {/* Gradient overlay bas */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-
-        {/* Bouton retour */}
-        <Link
-          href="/recipes"
-          className="absolute left-4 top-4 flex h-10 w-10 items-center justify-center
-            rounded-full bg-white/80 text-neutral-700 backdrop-blur-sm
-            transition-colors hover:bg-white focus-visible:outline-none
-            focus-visible:ring-2 focus-visible:ring-primary-500 dark:bg-neutral-800/80 dark:text-neutral-200"
-          aria-label="Retour aux recettes"
-        >
-          <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-        </Link>
       </div>
 
-      {/* Contenu -- card qui remonte sur la photo */}
-      <div className="relative -mt-8 rounded-t-3xl bg-white px-6 pt-6 pb-8 dark:bg-neutral-900">
-        {/* Badge categorie */}
+      {/* Contenu */}
+      <div className="mt-6">
+        {/* Badge cuisine */}
         <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[#E2725B]">
-          {recipe.cuisine?.toUpperCase() || "RECETTE PREMIUM"}
+          {recipe.cuisine?.toUpperCase() || "RECETTE"}
         </p>
 
         {/* Titre */}
-        <h1 className="mt-2 font-serif text-2xl font-bold leading-tight text-[#201a19] md:text-3xl dark:text-neutral-100">
+        <h1 className="mt-1 font-serif text-2xl font-bold text-[#201a19] md:text-3xl dark:text-neutral-100">
           {recipe.title}
         </h1>
 
-        {/* Metadonnees en icones */}
-        <div className="mt-4 flex items-center gap-4 text-sm text-[#857370] dark:text-neutral-400">
-          {recipe.total_time_minutes != null && recipe.total_time_minutes > 0 && (
+        {/* Metadonnees en ligne */}
+        <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-[#857370] dark:text-neutral-400">
+          {displayTime != null && (
             <span className="flex items-center gap-1.5">
               <Clock className="h-4 w-4" aria-hidden="true" />
-              {recipe.total_time_minutes} min
+              {displayTime} min
             </span>
           )}
 
@@ -229,11 +228,11 @@ export default async function RecipePage({ params }: RecipePageProps) {
             {recipe.description}
           </p>
         )}
+      </div>
 
-        {/* Tabs : Ingredients / Instructions / Nutrition */}
-        <div className="mt-6">
-          <RecipeTabsClient recipe={recipe} />
-        </div>
+      {/* Tabs : Ingredients / Instructions / Nutrition */}
+      <div className="mt-8">
+        <RecipeTabsClient recipe={recipe} />
       </div>
     </div>
   );
