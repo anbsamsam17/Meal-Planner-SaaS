@@ -207,7 +207,7 @@ async def generate_plan(
                 VALUES (gen_random_uuid(), :hid, :ws, 'draft')
                 RETURNING id
             """),
-            {"hid": str(household_id), "ws": str(body.week_start)},
+            {"hid": str(household_id), "ws": body.week_start},
         )
         plan_id = str(plan_result.fetchone()[0])
 
@@ -290,7 +290,7 @@ async def get_current_plan(
             text(
                 "SELECT id FROM weekly_plans WHERE household_id = :hid AND week_start = :ws LIMIT 1"
             ),
-            {"hid": str(household_id), "ws": str(monday)},
+            {"hid": str(household_id), "ws": monday},
         )
         row = result.fetchone()
 
