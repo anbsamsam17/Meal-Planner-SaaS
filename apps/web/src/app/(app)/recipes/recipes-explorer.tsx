@@ -64,7 +64,7 @@ export function RecipesExplorer() {
     staleTime: 3 * 60 * 1000, // 3 minutes
   });
 
-  const allRecipes = data?.pages.flatMap((p) => p.data ?? []) ?? [];
+  const allRecipes = data?.pages.flatMap((p) => (p as any).results ?? (p as any).data ?? []) ?? [];
   const totalCount = data?.pages[0]?.total ?? 0;
 
   // Intersection Observer pour infinite scroll
