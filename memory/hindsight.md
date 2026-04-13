@@ -81,6 +81,14 @@ Claude doit ajouter une entrée à la fin de chaque session significative :
 
 ---
 
+## 2026-04-12 — Refonte page recettes — alignement types Recipe (nextjs-developer)
+
+**Erreur potentielle évitée** : Le type `Recipe.difficulty` est `"easy" | "medium" | "hard" | null` (enum string), pas `1 | 2 | 3 | 4 | 5`. `RecipeFilters.difficulty` utilise l'échelle numérique 1-5 côté filtres API, mais la card reçoit une `Recipe` avec l'enum string. Ne jamais confondre les deux représentations — le filtre envoyé à l'API est numérique, la donnée reçue dans la Recipe est string.
+**Règle à retenir** : Avant d'utiliser un champ de `Recipe` dans un nouveau composant, relire `apps/web/src/lib/api/types.ts` pour vérifier le type exact. Les champs `difficulty`, `dietary_tags` (pas `tags`), `total_time_minutes` (pas `total_time_min`) sont des pièges fréquents.
+**Erreur potentielle évitée** : `useInfiniteQuery` agrège toutes les pages en mémoire — en remplaçant par `useQuery` + pagination classique, le `queryKey` doit inclure `page` sinon le cache retourne toujours la même page. Inclure `page` dans le `queryKey` est obligatoire.
+
+---
+
 ## 2026-04-12 — Mismatch format ingrédients API brut vs type Ingredient frontend
 
 **Erreur commise** : `IngredientList` attendait `{id, name, unit, note, category}` mais l'API catalogue retourne `{ingredient_id, canonical_name, unit, notes, position}`. Le composant tombait sur la branche vide (0 ingrédients) sans aucune erreur visible.

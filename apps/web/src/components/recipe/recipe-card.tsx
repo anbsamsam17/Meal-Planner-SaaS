@@ -2,16 +2,16 @@
 // Carte recette premium — design food editorial portrait 4:5
 // Photo portrait grande, badge temps terracotta overlay haut-droite,
 // rating étoile dorée overlay bas-gauche, titre Noto Serif, catégorie small caps
-// Référence design : food-app premium (terracotta #E2725B, cream #fff8f6)
+// Refonte 2026-04-12 : badge coût estimé + temps préparation sous le titre
 "use client";
 
 import Image from "next/image";
 import Link from "next/link";
+import { Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Recipe } from "@/lib/api/types";
 
 // --- Images Unsplash placeholder pour les recettes sans photo ---
-// Sélection food éditoriale variée : légumes, pâtes, plat en sauce, pizza, petit-déj, viande
 const PLACEHOLDER_IMAGES = [
   "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=800&auto=format&fit=crop",
   "https://images.unsplash.com/photo-1473093226795-af9932fe5856?q=80&w=800&auto=format&fit=crop",
@@ -25,6 +25,30 @@ const PLACEHOLDER_IMAGES = [
 function getPlaceholderImage(id: string): string {
   const index = id.charCodeAt(0) % PLACEHOLDER_IMAGES.length;
   return PLACEHOLDER_IMAGES[index] ?? PLACEHOLDER_IMAGES[0];
+}
+
+// Calcule le badge coût estimé basé sur dietary_tags et difficulty
+// "économique" dans dietary_tags → €, difficulty "hard" → €€€, sinon → €€
+function getCostBadge(recipe: Recipe): string {
+  const tags = recipe.dietary_tags ?? [];
+  if (tags.includes("vegetarian") || (tags as string[]).includes("économique")) {
+    return "€";
+  }
+  if (recipe.difficulty === "hard") {
+    return "€€€";
+  }
+  return "€€";
+}
+
+// Temps d'affichage priorité : total_time_minutes > prep + cook > null
+function getDisplayTime(recipe: Recipe): number | null {
+  if (recipe.total_time_minutes != null && recipe.total_time_minutes > 0) {
+    return recipe.total_time_minutes;
+  }
+  const prep = recipe.prep_time_minutes ?? 0;
+  const cook = recipe.cook_time_minutes ?? 0;
+  const combined = prep + cook;
+  return combined > 0 ? combined : null;
 }
 
 interface RecipeCardProps {
@@ -45,7 +69,8 @@ export function RecipeCard({
   className,
 }: RecipeCardProps) {
   const imageUrl = recipe.photo_url || recipe.image_url || getPlaceholderImage(recipe.id);
-  const time = recipe.total_time_minutes;
+  const displayTime = getDisplayTime(recipe);
+  const costBadge = getCostBadge(recipe);
   // rating_average est 1.0–5.0, on l'affiche directement avec .toFixed(1)
   const rating = recipe.rating_average != null ? Number(recipe.rating_average).toFixed(1) : null;
 
@@ -70,9 +95,9 @@ export function RecipeCard({
         )}
 
         {/* Badge temps — overlay haut-droite, fond terracotta */}
-        {time != null && time > 0 && (
+        {displayTime != null && displayTime > 0 && (
           <span className="absolute right-3 top-3 rounded-full bg-[#E2725B]/90 px-3 py-1.5 text-xs font-semibold text-white shadow-sm">
-            {time} MIN
+            {displayTime} MIN
           </span>
         )}
 
@@ -85,9 +110,11 @@ export function RecipeCard({
             <span className="text-xs font-semibold text-white">{rating}</span>
             {recipe.rating_count > 0 && (
               <span className="text-xs text-white/70">
-                ({recipe.rating_count >= 1000
+                (
+                {recipe.rating_count >= 1000
                   ? `${(recipe.rating_count / 1000).toFixed(1)}k`
-                  : recipe.rating_count})
+                  : recipe.rating_count}
+                )
               </span>
             )}
           </div>
@@ -105,6 +132,17 @@ export function RecipeCard({
       <h3 className="mt-1 font-serif text-base font-bold leading-snug text-[#201a19] line-clamp-2 group-hover:text-[#E2725B] transition-colors duration-200">
         {recipe.title}
       </h3>
+
+      {/* Temps de préparation + coût estimé — sous le titre */}
+      <div className="mt-2 flex items-center gap-3 text-xs text-[#857370]">
+        {displayTime != null && (
+          <span className="flex items-center gap-1">
+            <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+            {displayTime} min
+          </span>
+        )}
+        <span className="font-medium text-[#E2725B]">{costBadge}</span>
+      </div>
 
       {/* Bouton swap — visible uniquement dans le planning */}
       {onSwap && (

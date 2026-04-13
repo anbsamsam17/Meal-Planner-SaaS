@@ -2,9 +2,10 @@
 // apps/web/src/app/(app)/recipes/recipes-explorer.tsx
 // Explorer de recettes avec filtres avancés — Client Component
 // Phase 2 — barre de recherche arrondie premium, pills filtres, grid portrait 2→3 col
+// Refonte 2026-04-12 : pagination numérotée, filtres corrigés, cards enrichies, FR complet
 
-import { useState, useCallback } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { searchRecipesAdvanced } from "@/lib/api/endpoints";
@@ -13,101 +14,145 @@ import type { Recipe } from "@/lib/api/types";
 import { RecipeCard } from "@/components/recipe/recipe-card";
 import { RecipeFiltersPanel } from "@/components/recipe/recipe-filters";
 
-const DEFAULT_FILTERS: RecipeFilters = { per_page: 24 };
+const PER_PAGE = 24;
+const DEFAULT_FILTERS: RecipeFilters = { per_page: PER_PAGE };
 
-// Pills de filtres rapides — statiques (enrichissables via feature flag)
+// Pills rapides — 4 seulement, pas de cuisines individuelles (spéc. correction 5)
 const QUICK_FILTERS = [
   { label: "Rapide (< 15 min)", key: "quick" },
   { label: "Desserts", key: "dessert" },
   { label: "Végétarien", key: "vegetarian" },
-  { label: "Française", key: "french" },
-  { label: "Indienne", key: "indian" },
-  { label: "Japonaise", key: "japanese" },
-  { label: "Italienne", key: "italian" },
-  { label: "Mexicaine", key: "mexican" },
+  { label: "Facile", key: "easy" },
 ] as const;
 
 type QuickFilterKey = (typeof QUICK_FILTERS)[number]["key"];
+
+// --- Composant Pagination numérotée ---
+
+interface PaginationProps {
+  page: number;
+  totalPages: number;
+  onChange: (p: number) => void;
+}
+
+function Pagination({ page, totalPages, onChange }: PaginationProps) {
+  if (totalPages <= 1) return null;
+
+  // Construire la liste de numéros avec ellipses (-1)
+  const pages: number[] = [];
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || Math.abs(i - page) <= 1) {
+      pages.push(i);
+    } else if (pages[pages.length - 1] !== -1) {
+      pages.push(-1); // ellipsis
+    }
+  }
+
+  return (
+    <nav
+      className="mt-8 flex items-center justify-center gap-2 flex-wrap"
+      aria-label="Pagination"
+    >
+      <button
+        type="button"
+        disabled={page <= 1}
+        onClick={() => onChange(page - 1)}
+        className="rounded-lg border border-[#857370]/20 px-3 py-2 text-sm disabled:opacity-30 hover:bg-[#E2725B]/10 transition-colors"
+      >
+        ← Précédent
+      </button>
+
+      {pages.map((p, i) =>
+        p === -1 ? (
+          <span key={`e${i}`} className="px-1 text-[#857370]">
+            …
+          </span>
+        ) : (
+          <button
+            key={p}
+            type="button"
+            onClick={() => onChange(p)}
+            aria-current={p === page ? "page" : undefined}
+            className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              p === page
+                ? "bg-[#E2725B] text-white"
+                : "border border-[#857370]/20 hover:bg-[#E2725B]/10"
+            }`}
+          >
+            {p}
+          </button>
+        ),
+      )}
+
+      <button
+        type="button"
+        disabled={page >= totalPages}
+        onClick={() => onChange(page + 1)}
+        className="rounded-lg border border-[#857370]/20 px-3 py-2 text-sm disabled:opacity-30 hover:bg-[#E2725B]/10 transition-colors"
+      >
+        Suivant →
+      </button>
+    </nav>
+  );
+}
+
+// --- Composant principal ---
 
 export function RecipesExplorer() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState<RecipeFilters>(DEFAULT_FILTERS);
   const [activeQuickFilter, setActiveQuickFilter] = useState<QuickFilterKey | null>(null);
+  const [page, setPage] = useState(1);
 
   const debouncedQuery = useDebounce(searchQuery, 350);
 
-  // Merge de la recherche textuelle + quick filter dans les filtres
+  // Merge recherche textuelle + quick filter dans les filtres actifs
   const activeFilters: RecipeFilters = {
     ...filters,
     q: debouncedQuery || undefined,
     ...(activeQuickFilter === "quick" && { max_time: 15 }),
-    // "dessert" n'est pas un DietaryTag — on filtre via recherche textuelle
     ...(activeQuickFilter === "dessert" && { q: "dessert" }),
     ...(activeQuickFilter === "vegetarian" && { diet: "vegetarian" }),
-    ...(activeQuickFilter === "french" && { cuisine: "française" }),
-    ...(activeQuickFilter === "indian" && { cuisine: "indienne" }),
-    ...(activeQuickFilter === "japanese" && { cuisine: "japonaise" }),
-    ...(activeQuickFilter === "italian" && { cuisine: "italienne" }),
-    ...(activeQuickFilter === "mexican" && { cuisine: "mexicaine" }),
-    per_page: 24,
+    ...(activeQuickFilter === "easy" && { difficulty: 2 }),
+    per_page: PER_PAGE,
+    page,
   };
 
-  const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading,
-    isError,
-  } = useInfiniteQuery<PaginatedResponse<Recipe>, Error>({
-    queryKey: ["recipes", "explore", activeFilters],
-    queryFn: ({ pageParam = 1 }) =>
-      searchRecipesAdvanced({ ...activeFilters, page: pageParam as number }),
-    initialPageParam: 1,
-    getNextPageParam: (lastPage, allPages) => {
-      // L'API retourne { results, total } sans has_next — on calcule depuis le total
-      const totalLoaded = allPages.reduce(
-        (sum, p) => sum + ((p as any).results?.length ?? (p as any).data?.length ?? 0),
-        0,
-      );
-      if (totalLoaded < (lastPage.total ?? 0)) return allPages.length + 1;
-      return undefined;
-    },
+  const { data, isLoading, isError } = useQuery<PaginatedResponse<Recipe>, Error>({
+    queryKey: ["recipes", "explore", activeFilters, page],
+    queryFn: () => searchRecipesAdvanced(activeFilters),
     staleTime: 3 * 60 * 1000, // 3 minutes
   });
 
-  const allRecipes = data?.pages.flatMap((p) => (p as any).results ?? (p as any).data ?? []) ?? [];
-  const totalCount = data?.pages[0]?.total ?? 0;
+  // L'API retourne { data, total } ou { results, total } — absorber les deux formats
+  const recipes: Recipe[] =
+    (data as any)?.results ?? (data as any)?.data ?? [];
+  const totalCount = data?.total ?? 0;
+  const totalPages = Math.ceil(totalCount / PER_PAGE);
 
-  // Intersection Observer pour infinite scroll
-  const loadMoreRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      if (!node || !hasNextPage || isFetchingNextPage) return;
-      const observer = new IntersectionObserver(
-        ([entry]) => {
-          if (entry?.isIntersecting) void fetchNextPage();
-        },
-        { threshold: 0.1 },
-      );
-      observer.observe(node);
-      return () => observer.disconnect();
-    },
-    [fetchNextPage, hasNextPage, isFetchingNextPage],
-  );
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function handlePageChange(p: number) {
+    setPage(p);
+    scrollToTop();
+  }
 
   function handleFiltersChange(newFilters: RecipeFilters) {
-    // Conserver per_page: 24 — le 12 cassait la cohérence avec activeFilters
-    setFilters({ ...newFilters, per_page: 24 });
+    setFilters({ ...newFilters, per_page: PER_PAGE });
+    setPage(1); // Remettre à page 1 quand les filtres changent
   }
 
   function handleQuickFilter(key: QuickFilterKey) {
     setActiveQuickFilter((prev) => (prev === key ? null : key));
+    setPage(1);
   }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:py-12">
       {/* =========================================
-          HEADER PREMIUM — sous-titre terracotta + titre Noto Serif
+          HEADER PREMIUM
       ========================================= */}
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#E2725B]">
         Découvrez de nouvelles saveurs
@@ -119,7 +164,7 @@ export function RecipesExplorer() {
       </h1>
 
       {/* =========================================
-          BARRE DE RECHERCHE — arrondie full, fond cream chaud
+          BARRE DE RECHERCHE
       ========================================= */}
       <div className="mt-6 relative">
         <label htmlFor="recipe-search" className="sr-only">
@@ -133,20 +178,26 @@ export function RecipesExplorer() {
           id="recipe-search"
           type="search"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setPage(1);
+          }}
           placeholder="Rechercher ingrédients, cuisines..."
           className="w-full rounded-full border-0 bg-[#E2725B]/5 py-3.5 pl-12 pr-4 text-sm text-[#201a19] placeholder:text-[#857370]/60 focus:outline-none focus:ring-2 focus:ring-[#E2725B]/30 transition-all duration-200"
         />
       </div>
 
       {/* =========================================
-          PILLS FILTRES RAPIDES — scrollable horizontal
+          PILLS FILTRES RAPIDES — 4 pills + bouton filtres
       ========================================= */}
       <div className="mt-4 flex gap-2 overflow-x-auto hide-scrollbar pb-2">
-        {/* Bouton "Tous les filtres" ouvre le panneau latéral via RecipeFiltersPanel */}
         <button
           type="button"
-          onClick={() => setActiveQuickFilter(null)}
+          onClick={() => {
+            setActiveQuickFilter(null);
+            setFilters(DEFAULT_FILTERS);
+            setPage(1);
+          }}
           className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#E2725B] px-4 py-2 text-xs font-medium text-white whitespace-nowrap transition-opacity duration-200 hover:opacity-90"
         >
           <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
@@ -170,7 +221,7 @@ export function RecipesExplorer() {
       </div>
 
       {/* =========================================
-          LAYOUT : filtres avancés (sidebar) + grille résultats
+          LAYOUT : filtres sidebar + grille résultats
       ========================================= */}
       <div className="mt-6 flex gap-6">
         {/* Filtres avancés — sidebar desktop / sheet mobile */}
@@ -198,9 +249,9 @@ export function RecipesExplorer() {
             </p>
           </div>
 
-          {/* Grille de recettes — 2 colonnes mobile, 3 desktop */}
+          {/* Grille de recettes */}
           {isLoading ? (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-2 gap-4 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
@@ -215,9 +266,12 @@ export function RecipesExplorer() {
                 Impossible de charger les recettes. Vérifiez votre connexion.
               </p>
             </div>
-          ) : allRecipes.length === 0 ? (
+          ) : recipes.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-[#857370]/30 bg-white py-16 text-center">
-              <SlidersHorizontal className="mx-auto mb-4 h-10 w-10 text-[#857370]/40" aria-hidden />
+              <SlidersHorizontal
+                className="mx-auto mb-4 h-10 w-10 text-[#857370]/40"
+                aria-hidden
+              />
               <p className="text-sm font-medium text-[#201a19]">
                 Aucune recette ne correspond à vos filtres
               </p>
@@ -228,29 +282,19 @@ export function RecipesExplorer() {
           ) : (
             <>
               <ul className="grid grid-cols-2 gap-4 xl:grid-cols-3">
-                {allRecipes.map((recipe, index) => (
+                {recipes.map((recipe, index) => (
                   <li key={recipe.id}>
                     <RecipeCard recipe={recipe} priority={index < 4} />
                   </li>
                 ))}
               </ul>
 
-              {/* Trigger infinite scroll — div observée par IntersectionObserver */}
-              <div ref={loadMoreRef} className="mt-8 flex flex-col items-center gap-4">
-                {isFetchingNextPage && (
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#857370]/30 border-t-[#E2725B]" />
-                )}
-                {/* Bouton fallback visible si l'observer ne se déclenche pas */}
-                {hasNextPage && !isFetchingNextPage && (
-                  <button
-                    type="button"
-                    onClick={() => void fetchNextPage()}
-                    className="mx-auto block rounded-full bg-[#E2725B] px-6 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2725B] focus-visible:ring-offset-2"
-                  >
-                    Voir plus de recettes
-                  </button>
-                )}
-              </div>
+              {/* Pagination numérotée */}
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                onChange={handlePageChange}
+              />
             </>
           )}
         </div>

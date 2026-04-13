@@ -977,4 +977,20 @@ Prompt généré automatiquement lors de l'initialisation du projet via Claude P
 
 ---
 
+## 2026-04-12 — Refonte majeure page recettes (5 corrections) — nextjs-developer
+
+**Scope** : `apps/web/src/app/(app)/recipes/recipes-explorer.tsx`, `apps/web/src/components/recipe/recipe-filters.tsx`, `apps/web/src/components/recipe/recipe-card.tsx`
+
+**Correction 1 — Pagination numérotée** : Remplacement de `useInfiniteQuery` par `useQuery` avec état `page`. Composant `Pagination` avec ellipses (max 7 boutons visibles), scroll to top au changement de page. `totalPages = Math.ceil(total / 24)`.
+
+**Correction 2 — Filtres latéraux** : Budget chips → valeurs FR (`économique`/`moyen`/`premium`). Slider max_time → `undefined` à 120min (pas de filtre). Difficulté → 5 niveaux 1-5 alignés sur `RecipeFilters.difficulty`. Régime → `DietaryTag[]` multi-select. Cuisine → top 10 uniquement. Chips actives en terracotta `#E2725B`.
+
+**Correction 3 — Cards enrichies** : Ajout badge coût estimé (`€`/`€€`/`€€€`) basé sur `dietary_tags` et `difficulty`. Ajout ligne temps + horloge sous le titre. `getDisplayTime()` gère `total_time_minutes` ou `prep + cook`. Types strictement alignés sur `Recipe` (`dietary_tags` pas `tags`, `difficulty: "easy"|"medium"|"hard"`).
+
+**Correction 4 — Textes FR** : Boutons "← Précédent" / "Suivant →", compteur "recettes", message vide, pills rapides 4 seulement (Rapide/Desserts/Végétarien/Facile).
+
+**Correction 5 — Cuisines regroupées** : Pills rapides sans cuisines individuelles. Cuisines uniquement dans le panneau de filtre (top 10 = CUISINE_OPTIONS réduit de 18 à 10).
+
+**Typecheck** : `pnpm typecheck` — 0 erreur TypeScript.
+
 <!-- Ajoute tes nouveaux prompts ci-dessus avec le même format -->

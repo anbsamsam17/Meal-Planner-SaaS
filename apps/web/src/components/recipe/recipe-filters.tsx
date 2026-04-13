@@ -1,7 +1,8 @@
 "use client";
 // apps/web/src/components/recipe/recipe-filters.tsx
 // Filtres avancés pour la recherche de recettes
-// Phase 2 — budget chips, slider temps, difficulté étoiles, régime multi-select, cuisine chips
+// Phase 2 — budget chips, slider temps, difficulté, régime multi-select, cuisine chips (top 10)
+// Refonte 2026-04-12 : filtre budget FR, difficulté 1-5, régime tags FR, cuisine top 10
 
 import { useState, useCallback } from "react";
 import { SlidersHorizontal, X, RotateCcw } from "lucide-react";
@@ -11,7 +12,7 @@ import type { RecipeFilters, DietaryTag } from "@/lib/api/types";
 // --- Constantes des options de filtres ---
 
 const BUDGET_OPTIONS: { value: RecipeFilters["budget"]; label: string }[] = [
-  { value: "économique", label: "Economique" },
+  { value: "économique", label: "Économique" },
   { value: "moyen", label: "Moyen" },
   { value: "premium", label: "Premium" },
 ];
@@ -27,36 +28,28 @@ const DIET_OPTIONS: { value: DietaryTag; label: string }[] = [
   { value: "nut-free", label: "Sans fruits à coque" },
 ];
 
-// Valeurs en minuscules — c'est le format stocké en DB et attendu par l'API (?cuisine=française)
-// Le label affiché est capitalisé pour l'UI, mais la valeur envoyée est en minuscule
-const CUISINE_OPTIONS: { value: string; label: string }[] = [
+// Top 10 cuisines uniquement (spéc. correction 2 + 5)
+const TOP_CUISINES: { value: string; label: string }[] = [
   { value: "française", label: "Française" },
   { value: "italienne", label: "Italienne" },
-  { value: "britannique", label: "Britannique" },
-  { value: "espagnole", label: "Espagnole" },
-  { value: "américaine", label: "Américaine" },
   { value: "indienne", label: "Indienne" },
-  { value: "thaïlandaise", label: "Thaïlandaise" },
-  { value: "chinoise", label: "Chinoise" },
   { value: "japonaise", label: "Japonaise" },
   { value: "mexicaine", label: "Mexicaine" },
-  { value: "turque", label: "Turque" },
-  { value: "grecque", label: "Grecque" },
-  { value: "vietnamienne", label: "Vietnamienne" },
-  { value: "marocaine", label: "Marocaine" },
-  { value: "jamaïcaine", label: "Jamaïcaine" },
-  { value: "canadienne", label: "Canadienne" },
-  { value: "polonaise", label: "Polonaise" },
-  { value: "coréenne", label: "Coréenne" },
+  { value: "thaïlandaise", label: "Thaïlandaise" },
+  { value: "chinoise", label: "Chinoise" },
+  { value: "espagnole", label: "Espagnole" },
+  { value: "américaine", label: "Américaine" },
+  { value: "britannique", label: "Britannique" },
 ];
 
-const DIFFICULTY_LABELS: Record<number, string> = {
-  1: "Très facile",
-  2: "Facile",
-  3: "Moyen",
-  4: "Difficile",
-  5: "Très difficile",
-};
+// Difficulté 1-5 → labels FR
+const DIFFICULTY_OPTIONS: { value: 1 | 2 | 3 | 4 | 5; label: string }[] = [
+  { value: 1, label: "Très facile" },
+  { value: 2, label: "Facile" },
+  { value: 3, label: "Moyen" },
+  { value: 4, label: "Difficile" },
+  { value: 5, label: "Très difficile" },
+];
 
 // --- Composants utilitaires ---
 
@@ -73,10 +66,10 @@ function Chip({ label, active, onClick }: ChipProps) {
       onClick={onClick}
       className={cn(
         "inline-flex min-h-[36px] items-center rounded-full px-3 py-1 text-xs font-medium transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2725B]/50 focus-visible:ring-offset-1",
         active
-          ? "bg-primary-600 text-white"
-          : "border border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300 hover:bg-neutral-50",
+          ? "bg-[#E2725B] text-white border border-[#E2725B]"
+          : "border border-neutral-200 bg-white text-neutral-600 hover:border-[#E2725B]/40 hover:bg-[#E2725B]/5",
       )}
       aria-pressed={active}
     >
@@ -90,13 +83,10 @@ function Chip({ label, active, onClick }: ChipProps) {
 interface RecipeFiltersProps {
   filters: RecipeFilters;
   onChange: (filters: RecipeFilters) => void;
-  // Nombre de résultats pour le label du bouton mobile
   resultCount?: number;
 }
 
-const DEFAULT_FILTERS: RecipeFilters = {
-  max_time: 60,
-};
+const DEFAULT_FILTERS: RecipeFilters = {};
 
 export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFiltersProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -108,6 +98,7 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
     [filters, onChange],
   );
 
+  // Régime : multi-select via tableau DietaryTag[]
   function toggleDiet(diet: DietaryTag) {
     const current = Array.isArray(filters.diet)
       ? filters.diet
@@ -126,6 +117,11 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
     return current.includes(diet);
   }
 
+  // Difficulté : un seul niveau sélectionnable (max_difficulty implicite)
+  function handleDifficulty(level: 1 | 2 | 3 | 4 | 5) {
+    updateFilter("difficulty", filters.difficulty === level ? undefined : level);
+  }
+
   function handleReset() {
     onChange(DEFAULT_FILTERS);
   }
@@ -134,7 +130,7 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
     !!filters.budget ||
     !!filters.cuisine ||
     !!filters.difficulty ||
-    (filters.max_time != null && filters.max_time !== DEFAULT_FILTERS.max_time) ||
+    filters.max_time != null ||
     (Array.isArray(filters.diet) ? filters.diet.length > 0 : !!filters.diet);
 
   const filtersContent = (
@@ -166,25 +162,31 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
           className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500"
         >
           Temps max :{" "}
-          <span className="font-bold text-neutral-800">{filters.max_time ?? 60} min</span>
+          <span className="font-bold text-neutral-800">
+            {filters.max_time != null ? `${filters.max_time} min` : "Tous"}
+          </span>
         </h3>
         <input
           type="range"
           min={15}
           max={120}
           step={5}
-          value={filters.max_time ?? 60}
-          onChange={(e) => updateFilter("max_time", Number(e.target.value))}
-          className="h-2 w-full cursor-pointer appearance-none rounded-full bg-neutral-200 accent-primary-600"
-          aria-label={`Temps maximum : ${filters.max_time ?? 60} minutes`}
+          value={filters.max_time ?? 120}
+          onChange={(e) => {
+            const val = Number(e.target.value);
+            // 120 = pas de filtre (valeur max du slider)
+            updateFilter("max_time", val === 120 ? undefined : val);
+          }}
+          className="h-2 w-full cursor-pointer appearance-none rounded-full bg-neutral-200 accent-[#E2725B]"
+          aria-label={`Temps maximum : ${filters.max_time ?? 120} minutes`}
         />
         <div className="flex justify-between text-xs text-neutral-400">
           <span>15 min</span>
-          <span>120 min</span>
+          <span>2 h</span>
         </div>
       </section>
 
-      {/* Difficulté */}
+      {/* Difficulté 1-5 */}
       <section aria-labelledby="filter-difficulty">
         <h3
           id="filter-difficulty"
@@ -193,14 +195,12 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
           Difficulté
         </h3>
         <div className="flex flex-wrap gap-2">
-          {([1, 2, 3, 4, 5] as const).map((level) => (
+          {DIFFICULTY_OPTIONS.map(({ value, label }) => (
             <Chip
-              key={level}
-              label={DIFFICULTY_LABELS[level] ?? String(level)}
-              active={filters.difficulty === level}
-              onClick={() =>
-                updateFilter("difficulty", filters.difficulty === level ? undefined : level)
-              }
+              key={value}
+              label={label}
+              active={filters.difficulty === value}
+              onClick={() => handleDifficulty(value)}
             />
           ))}
         </div>
@@ -226,7 +226,7 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
         </div>
       </section>
 
-      {/* Cuisine */}
+      {/* Cuisine — top 10 uniquement */}
       <section aria-labelledby="filter-cuisine">
         <h3
           id="filter-cuisine"
@@ -235,7 +235,7 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
           Cuisine
         </h3>
         <div className="flex flex-wrap gap-2">
-          {CUISINE_OPTIONS.map(({ value, label }) => (
+          {TOP_CUISINES.map(({ value, label }) => (
             <Chip
               key={value}
               label={label}
@@ -253,7 +253,7 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
         <button
           type="button"
           onClick={handleReset}
-          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2725B]/50"
         >
           <RotateCcw className="h-3.5 w-3.5" aria-hidden />
           Réinitialiser
@@ -271,9 +271,9 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
           onClick={() => setMobileOpen(true)}
           className={cn(
             "inline-flex min-h-[44px] items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2725B]/50",
             hasActiveFilters
-              ? "border-primary-300 bg-primary-50 text-primary-700"
+              ? "border-[#E2725B]/40 bg-[#E2725B]/5 text-[#E2725B]"
               : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50",
           )}
           aria-label="Ouvrir les filtres"
@@ -281,7 +281,7 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
           <SlidersHorizontal className="h-4 w-4" aria-hidden />
           Filtres
           {hasActiveFilters && (
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-600 text-2xs font-bold text-white">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#E2725B] text-[10px] font-bold text-white">
               !
             </span>
           )}
@@ -300,13 +300,16 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 lg:hidden"
           onClick={(e) => e.target === e.currentTarget && setMobileOpen(false)}
         >
-          <div className="w-full rounded-t-2xl bg-white p-6 shadow-xl" style={{ maxHeight: "85dvh", overflowY: "auto" }}>
+          <div
+            className="w-full rounded-t-2xl bg-white p-6 shadow-xl"
+            style={{ maxHeight: "85dvh", overflowY: "auto" }}
+          >
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-semibold text-neutral-900">Filtres</h2>
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2725B]/50"
                 aria-label="Fermer les filtres"
               >
                 <X className="h-5 w-5" aria-hidden />
@@ -316,7 +319,7 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
             <button
               type="button"
               onClick={() => setMobileOpen(false)}
-              className="mt-6 inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+              className="mt-6 inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-[#E2725B] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#E2725B]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2725B]/50"
             >
               Voir les résultats
               {resultCount != null && ` (${resultCount})`}
@@ -326,10 +329,7 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
       )}
 
       {/* Sidebar desktop */}
-      <aside
-        className="hidden w-64 flex-shrink-0 lg:block"
-        aria-label="Filtres de recherche"
-      >
+      <aside className="hidden w-64 flex-shrink-0 lg:block" aria-label="Filtres de recherche">
         <div className="rounded-xl border border-neutral-200 bg-white p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-neutral-900">Filtres</h2>
@@ -337,7 +337,7 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
               <button
                 type="button"
                 onClick={handleReset}
-                className="rounded-lg p-1 text-neutral-400 hover:text-neutral-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                className="rounded-lg p-1 text-neutral-400 hover:text-[#E2725B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2725B]/50"
                 aria-label="Réinitialiser les filtres"
               >
                 <RotateCcw className="h-3.5 w-3.5" aria-hidden />

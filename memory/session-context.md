@@ -16,18 +16,16 @@ links:
 
 ---
 
-## Session du : 2026-04-12 — Fix 4 bugs page recettes (nextjs-developer)
+## Session du : 2026-04-12 — Refonte majeure page recettes (5 corrections) — nextjs-developer
 
 **Scope** : `apps/web/src/**`
-**Statut** : Terminé — 4 fichiers modifiés, `pnpm typecheck` OK (0 erreur)
+**Statut** : Terminé — 3 fichiers modifiés, `pnpm typecheck` OK (0 erreur)
 
-**BUG 1 — Ingrédients non affichés** : L'API retourne `{ingredient_id, canonical_name, quantity, unit, notes, position}` mais `IngredientList` attend `{id, name, unit, note, category}`. Fix : normalisation dans `fetchRecipe()` dans `page.tsx` — mapping `ingredient_id→id`, `canonical_name→name`, `notes→note`, `category: "other"`.
-
-**BUG 2 — Pagination manquante** : `getNextPageParam` utilisait `lastPage.has_next` absent de la réponse API. Fix : calcul `totalLoaded < total` sur les pages accumulées. Ajout d'un bouton "Voir plus de recettes" en fallback de l'IntersectionObserver. Fix secondaire : `handleFiltersChange` passait `per_page: 12` au lieu de 24.
-
-**BUG 3 — Filtres latéraux** : `handleFiltersChange` écrasait `per_page` à 12 ce qui divergeait d'`activeFilters` (24). Les CUISINE_OPTIONS étaient déjà correctes. Fix : `per_page: 24` cohérent.
-
-**BUG 4 — Onglet Nutrition vide** : Message amélioré en bannière centrée "Informations nutritionnelles bientôt disponibles" avec sous-titre explicatif.
+**Correction 1** : `useInfiniteQuery` → `useQuery` + composant `Pagination` numéroté avec ellipses, scroll-to-top.
+**Correction 2** : Filtres latéraux — budget FR, slider max_time corrigé, difficulté 1-5, régime tags FR, cuisine top 10, chips actives terracotta.
+**Correction 3** : Cards — badge coût `€/€€/€€€` + ligne temps+horloge sous titre. Types alignés sur `Recipe` (`dietary_tags`, `difficulty` string enum).
+**Correction 4** : Tous les textes en français — boutons pagination, messages état vide.
+**Correction 5** : Pills rapides réduits à 4 (sans cuisines individuelles). Cuisines uniquement dans le panneau filtre.
 
 ---
 
