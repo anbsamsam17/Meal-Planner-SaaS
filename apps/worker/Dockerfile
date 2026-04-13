@@ -71,8 +71,8 @@ LABEL org.opencontainers.image.licenses="UNLICENSED"
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:$PATH" \
-    # PYTHONPATH pointe vers /app pour que les imports "apps.worker.src.*" fonctionnent
-    PYTHONPATH="/app" \
+    # PYTHONPATH pointe vers /app/apps/worker pour que "from src.agents..." fonctionne
+    PYTHONPATH="/app/apps/worker" \
     # Nombre de processus Celery par container (ajuster selon RAM Railway)
     # 4 est un bon point de départ pour des tâches I/O bound (appels API)
     CELERY_CONCURRENCY=4 \
@@ -108,15 +108,9 @@ WORKDIR /app
 COPY --from=builder --chown=appuser:appuser /workspace/.venv /app/.venv
 COPY --from=builder --chown=appuser:appuser /workspace/apps/worker /app/apps/worker
 
-# Installation de Playwright et ses dépendances système.
-# Playwright est requis par RECIPE_SCOUT pour les pages JavaScript-rendered.
-# L'install se fait en root (avant USER appuser) car --with-deps installe des paquets système.
-# Seul Chromium est installé (Firefox et WebKit non nécessaires pour le scraping).
-#
-# FIX Phase 1 (review 2026-04-12) : M12 code-review — chown sur /opt/playwright
-# pour que appuser puisse lire le cache Chromium après le basculement USER appuser.
-RUN /app/.venv/bin/playwright install chromium --with-deps \
-    && chown -R appuser:appuser /opt/playwright
+# Playwright désactivé pour le worker principal (trop lourd : +300MB Chromium)
+# Sera activé dans un worker dédié scraping si nécessaire
+# RUN /app/.venv/bin/playwright install chromium --with-deps
 
 USER appuser
 
@@ -132,7 +126,7 @@ HEALTHCHECK \
     --timeout=20s \
     --retries=3 \
     --start-period=60s \
-    CMD celery -A apps.worker.src.app inspect ping -d "celery@$(hostname)" --timeout 10 || exit 1
+    CMD cd /app/apps/worker && /app/.venv/bin/celery -A src.app inspect ping -d "celery@$(hostname)" --timeout 10 || exit 1
 
 # ENTRYPOINT Celery :
 # -A apps.worker.src.app : module contenant l'instance Celery
@@ -147,11 +141,9 @@ HEALTHCHECK \
 #
 # FIX Phase 1 (review 2026-04-12) : BUG #4 — module path mis à jour pour refléter la nouvelle
 # structure de workspace. PYTHONPATH=/app permet l'import "apps.worker.src.app".
-ENTRYPOINT [ \
-    "celery", "-A", "apps.worker.src.app", "worker", \
-    "--loglevel=INFO", \
-    "--concurrency=4", \
-    "--prefetch-multiplier=1", \
-    "--without-gossip", \
-    "--without-mingle" \
-]
+CMD cd /app/apps/worker && /app/.venv/bin/celery -A src.app worker \
+    --loglevel=${CELERY_LOG_LEVEL:-INFO} \
+    --concurrency=${CELERY_CONCURRENCY:-4} \
+    --prefetch-multiplier=${CELERY_PREFETCH_MULTIPLIER:-1} \
+    --without-gossip \
+    --without-mingle
