@@ -30,6 +30,21 @@ const RAYON_LABELS: Record<IngredientCategory, string> = {
   other: "🛒 Divers",
 };
 
+function mapRayon(rayon: string): IngredientCategory {
+  const map: Record<string, IngredientCategory> = {
+    "Épicerie": "grains", "Epicerie": "grains", "Boucherie": "meat",
+    "Volaille": "meat", "Poissonnerie": "fish", "Crèmerie": "dairy",
+    "Fruits & légumes": "vegetables", "Épices": "herbs", "Herbes fraîches": "herbs",
+    "Huiles & condiments": "condiments", "Sauces": "condiments",
+  };
+  return map[rayon] ?? "other";
+}
+
+function formatQuantities(quantities: any[] | undefined): string {
+  if (!quantities || quantities.length === 0) return "";
+  return quantities.map((q: any) => `${q.quantity ?? ""} ${q.unit ?? ""}`.trim()).join(", ");
+}
+
 export default function ShoppingListPage() {
   const searchParams = useSearchParams();
   const planIdFromQuery = searchParams.get("plan");
@@ -39,10 +54,29 @@ export default function ShoppingListPage() {
   // FIX BLOQUANT 3 : PlanDetail est plat — id directement sur l'objet
   const planId = planIdFromQuery ?? currentPlan?.id ?? null;
 
-  const { data: items = [], isLoading, error } = useShoppingList(planId);
+  const { data: rawItems = [], isLoading, error } = useShoppingList(planId);
   const toggleMutation = useToggleItem(planId ?? "");
 
-  // Grouper les items par catégorie/rayon
+  // Normaliser les champs API → champs composant
+  const items: ShoppingListItemType[] = rawItems.map((item: any, idx: number) => ({
+    ...item,
+    id: item.id ?? item.ingredient_id ?? `item-${idx}`,
+    ingredient_name: item.ingredient_name ?? item.canonical_name ?? "Ingrédient",
+    category: mapRayon(item.rayon ?? item.category ?? "other"),
+    is_checked: item.is_checked ?? item.checked ?? false,
+    quantity_display: formatQuantities(item.quantities),
+  }));
+
+  // Grouper par rayon (utiliser le rayon FR de l'API si disponible)
+  const byRayon = new Map<string, ShoppingListItemType[]>();
+  for (const item of items) {
+    const rayon = (item as any).rayon ?? RAYON_LABELS[item.category] ?? "Divers";
+    const group = byRayon.get(rayon) ?? [];
+    group.push(item);
+    byRayon.set(rayon, group);
+  }
+
+  // Legacy groupement par category pour le rendu existant
   const byCategory = new Map<IngredientCategory, ShoppingListItemType[]>();
   for (const item of items) {
     const group = byCategory.get(item.category) ?? [];
@@ -50,7 +84,6 @@ export default function ShoppingListPage() {
     byCategory.set(item.category, group);
   }
 
-  // Calculer la progression (items cochés)
   const checkedCount = items.filter((item) => item.is_checked).length;
   const totalCount = items.length;
   const progressPercent = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;

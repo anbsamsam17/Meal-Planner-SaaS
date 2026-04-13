@@ -717,10 +717,11 @@ async def swap_meal(
         )
 
     if plan_row["status"] != "draft":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Impossible de modifier un plan déjà validé ou archivé.",
+        await session.execute(
+            text("UPDATE weekly_plans SET status = 'draft', validated_at = NULL WHERE id = :pid"),
+            {"pid": str(plan_id)},
         )
+        logger.info("plan_reverted_to_draft", plan_id=str(plan_id))
 
     meal_result = await session.execute(
         text(
@@ -820,9 +821,9 @@ async def add_meal_to_plan(
         )
 
     if plan_row["status"] != "draft":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Impossible de modifier un plan déjà validé ou archivé.",
+        await session.execute(
+            text("UPDATE weekly_plans SET status = 'draft', validated_at = NULL WHERE id = :pid"),
+            {"pid": str(plan_id)},
         )
 
     # Verifier que la recette existe
