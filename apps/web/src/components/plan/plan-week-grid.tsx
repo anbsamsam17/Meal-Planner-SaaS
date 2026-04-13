@@ -136,8 +136,8 @@ export function PlanWeekGrid({ planDetail, onSwapMeal, onAddDay }: PlanWeekGridP
                       </span>
                     )}
 
-                    {/* Bouton "Changer" overlay — visible au hover, uniquement en mode draft */}
-                    {isDraft && onSwapMeal && (
+                    {/* Bouton "Changer" — toujours visible */}
+                    {onSwapMeal && (
                       <button
                         type="button"
                         onClick={(e) => {
@@ -145,14 +145,8 @@ export function PlanWeekGrid({ planDetail, onSwapMeal, onAddDay }: PlanWeekGridP
                           e.stopPropagation();
                           onSwapMeal(meal.id);
                         }}
-                        className={cn(
-                          "absolute right-1.5 top-1.5",
-                          "flex h-7 w-7 items-center justify-center rounded-full",
-                          "bg-white/80 text-[#857370] backdrop-blur-sm",
-                          "opacity-0 transition-all duration-200 group-hover:opacity-100",
-                          "hover:bg-[#E2725B] hover:text-white",
-                          "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2725B]",
-                        )}
+                        className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full
+                          bg-white/90 text-[#857370] shadow-sm hover:bg-[#E2725B] hover:text-white transition-all"
                         aria-label={`Changer la recette de ${dayLabel}`}
                       >
                         <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />

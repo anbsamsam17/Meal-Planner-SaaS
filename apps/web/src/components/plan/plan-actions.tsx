@@ -109,9 +109,8 @@ export function PlanActions({
 
           <Link
             href="/shopping-list"
-            className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3
-              text-sm font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-all
-              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 active:scale-[0.98]"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2
+              text-xs font-medium bg-emerald-500 text-white hover:bg-emerald-600 transition-all"
           >
             <ShoppingCart className="h-4 w-4" aria-hidden="true" />
             Voir ma liste de courses
