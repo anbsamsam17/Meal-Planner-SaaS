@@ -126,7 +126,7 @@ HEALTHCHECK \
     --timeout=20s \
     --retries=3 \
     --start-period=60s \
-    CMD cd /app/apps/worker && /app/.venv/bin/celery -A src.app inspect ping -d "celery@$(hostname)" --timeout 10 || exit 1
+    CMD cd /app/apps/worker && /app/.venv/bin/python -m celery -A src.app inspect ping --timeout 10 || exit 1
 
 # ENTRYPOINT Celery :
 # -A apps.worker.src.app : module contenant l'instance Celery
@@ -141,7 +141,7 @@ HEALTHCHECK \
 #
 # FIX Phase 1 (review 2026-04-12) : BUG #4 — module path mis à jour pour refléter la nouvelle
 # structure de workspace. PYTHONPATH=/app permet l'import "apps.worker.src.app".
-CMD cd /app/apps/worker && /app/.venv/bin/celery -A src.app worker \
+CMD cd /app/apps/worker && /app/.venv/bin/python -m celery -A src.app worker \
     --loglevel=${CELERY_LOG_LEVEL:-INFO} \
     --concurrency=${CELERY_CONCURRENCY:-4} \
     --prefetch-multiplier=${CELERY_PREFETCH_MULTIPLIER:-1} \
