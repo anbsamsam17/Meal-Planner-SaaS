@@ -1,26 +1,42 @@
 // apps/web/src/components/plan/plan-week-grid.tsx
 // Grille semaine — mobile : feed vertical | desktop : bento grid 3 cols
-// Référence : 04-components-catalog.md #04 PlanWeekGrid
-// Stagger animation 80ms entre cards à l'apparition
+// Reference : 04-components-catalog.md #04 PlanWeekGrid
+// Stagger animation 80ms entre cards a l'apparition
+// FIX BLOQUANT 4 (2026-04-12) : day_of_week int (1-7 ISO) au lieu de strings
 "use client";
 
 import { Plus } from "lucide-react";
 import { MotionUl, MotionLi } from "@/components/motion";
 import { RecipeCard } from "@/components/recipe/recipe-card";
 import type { PlanDetail, PlannedMeal } from "@/lib/api/endpoints";
+import type { Recipe } from "@/lib/api/types";
 
-// Labels FR des jours de la semaine
-const DAY_LABELS: Record<string, string> = {
-  monday: "Lundi",
-  tuesday: "Mardi",
-  wednesday: "Mercredi",
-  thursday: "Jeudi",
-  friday: "Vendredi",
-  saturday: "Samedi",
-  sunday: "Dimanche",
-};
+// FIX BLOQUANT 4 : mapping int ISO (1=lundi) vers labels FR
+const DAYS_FR: { day: number; label: string; short: string }[] = [
+  { day: 1, label: "Lundi", short: "Lun" },
+  { day: 2, label: "Mardi", short: "Mar" },
+  { day: 3, label: "Mercredi", short: "Mer" },
+  { day: 4, label: "Jeudi", short: "Jeu" },
+  { day: 5, label: "Vendredi", short: "Ven" },
+  { day: 6, label: "Samedi", short: "Sam" },
+  { day: 7, label: "Dimanche", short: "Dim" },
+];
 
-const DAY_ORDER = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+// Reconstruit un objet Recipe minimal depuis les champs denormalises de PlannedMeal
+// Le backend ne retourne pas un tableau `recipes[]` separe, mais des champs recipe_* sur chaque meal
+function buildRecipeFromMeal(meal: PlannedMeal): Recipe {
+  return {
+    id: meal.recipe_id,
+    title: meal.recipe_title ?? "Recette",
+    photo_url: meal.recipe_photo_url ?? null,
+    image_url: meal.recipe_photo_url ?? null,
+    total_time_min: meal.recipe_total_time_min ?? null,
+    total_time_minutes: meal.recipe_total_time_min ?? null,
+    difficulty: meal.recipe_difficulty ?? null,
+    cuisine_type: meal.recipe_cuisine_type ?? null,
+    cuisine: meal.recipe_cuisine_type ?? null,
+  };
+}
 
 interface PlanWeekGridProps {
   planDetail: PlanDetail;
@@ -28,15 +44,11 @@ interface PlanWeekGridProps {
 }
 
 export function PlanWeekGrid({ planDetail, onSwapMeal }: PlanWeekGridProps) {
-  // FIX Phase 1 mature (review 2026-04-12) — Mismatch D : backend retourne `meals`, pas `planned_meals`
-  const { meals, recipes } = planDetail;
+  const { meals } = planDetail;
 
-  // Indexer les recettes par ID pour accès O(1)
-  const recipesById = new Map(recipes.map((r) => [r.id, r]));
-
-  // Grouper les repas par jour dans l'ordre de la semaine
-  const mealsByDay = new Map<string, PlannedMeal[]>();
-  for (const day of DAY_ORDER) {
+  // FIX BLOQUANT 4 : grouper les meals par day_of_week (int 1-7)
+  const mealsByDay = new Map<number, PlannedMeal[]>();
+  for (const { day } of DAYS_FR) {
     mealsByDay.set(day, []);
   }
   for (const meal of meals) {
@@ -71,9 +83,8 @@ export function PlanWeekGrid({ planDetail, onSwapMeal }: PlanWeekGridProps) {
       role="grid"
       aria-label="Planning de la semaine"
     >
-      {DAY_ORDER.map((day, index) => {
+      {DAYS_FR.map(({ day, label: dayLabel }, index) => {
         const dayMeals = mealsByDay.get(day) ?? [];
-        const dayLabel = DAY_LABELS[day] ?? day;
 
         return (
           <MotionLi
@@ -81,9 +92,9 @@ export function PlanWeekGrid({ planDetail, onSwapMeal }: PlanWeekGridProps) {
             variants={itemVariants}
             className="flex flex-col gap-3"
             role="gridcell"
-            aria-label={`${dayLabel}${dayMeals.length === 0 ? " — aucun repas planifié" : ""}`}
+            aria-label={`${dayLabel}${dayMeals.length === 0 ? " — aucun repas planifie" : ""}`}
           >
-            {/* En-tête du jour */}
+            {/* En-tete du jour */}
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                 {dayLabel}
@@ -96,8 +107,8 @@ export function PlanWeekGrid({ planDetail, onSwapMeal }: PlanWeekGridProps) {
             {/* Recettes du jour */}
             {dayMeals.length > 0 ? (
               dayMeals.map((meal) => {
-                const recipe = recipesById.get(meal.recipe_id);
-                if (!recipe) return null;
+                // FIX BLOQUANT 4 : construire Recipe depuis les champs enrichis du meal
+                const recipe = buildRecipeFromMeal(meal);
 
                 return (
                   <RecipeCard
@@ -105,7 +116,7 @@ export function PlanWeekGrid({ planDetail, onSwapMeal }: PlanWeekGridProps) {
                     recipe={recipe}
                     mealLabel={dayLabel}
                     variant="md"
-                    priority={index < 2} // Priorité pour les 2 premières cards
+                    priority={index < 2}
                     onSwap={onSwapMeal ? () => onSwapMeal(meal.id) : undefined}
                   />
                 );

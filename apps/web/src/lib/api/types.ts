@@ -81,6 +81,8 @@ export interface NutritionInfo {
 
 // --- Plan hebdomadaire ---
 
+// WeeklyPlan conserve pour les cas legacy ou passe en tant que prop isolee.
+// La structure principale retournee par l'API est PlanDetail (cf. endpoints.ts).
 export interface WeeklyPlan {
   id: string;
   household_id: string;
@@ -91,11 +93,11 @@ export interface WeeklyPlan {
   created_at: string;
 }
 
-// Plan pour un jour de la semaine
+// Plan pour un jour de la semaine (legacy, non retourne par l'API actuelle)
 export interface DayPlan {
   date: string; // ISO date
   day_of_week: "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
-  recipe: Recipe | null; // Null si pas de repas planifié ce jour
+  recipe: Recipe | null; // Null si pas de repas planifie ce jour
   servings_override: number | null;
 }
 

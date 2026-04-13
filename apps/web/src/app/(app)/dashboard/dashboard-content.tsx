@@ -1,7 +1,7 @@
 // apps/web/src/app/(app)/dashboard/dashboard-content.tsx
-// Client Component — gère les interactions : swap, generate, validate
-// Reçoit les données initiales du Server Component parent (hydration)
-// BUG 3 FIX (2026-04-12) : gestion d'erreur "Failed to fetch" améliorée + retry automatique
+// Client Component — gere les interactions : swap, generate, validate
+// Recoit les donnees initiales du Server Component parent (hydration)
+// FIX BLOQUANT 2 (2026-04-12) : polling apres generation + structure PlanDetail plate
 "use client";
 
 import { useCallback, useRef } from "react";
@@ -13,24 +13,25 @@ import { PlanActions } from "@/components/plan/plan-actions";
 import type { PlanDetail } from "@/lib/api/endpoints";
 
 interface DashboardContentProps {
-  // Données initiales du Server Component (hydration SSR → client)
+  // Donnees initiales du Server Component (hydration SSR -> client)
   initialPlanData: PlanDetail | null;
 }
 
 export function DashboardContent({ initialPlanData }: DashboardContentProps) {
-  // TanStack Query prend le relais côté client, initialPlanData sert de placeholder
-  const { data: planDetail, isLoading } = useCurrentPlan();
-  const generateMutation = useGeneratePlan();
+  // TanStack Query prend le relais cote client, initialPlanData sert de placeholder
+  const { data: planDetail, isLoading, isGenerating, startPolling } = useCurrentPlan();
+  // FIX BLOQUANT 2 : passer startPolling pour declencher le polling apres le 202
+  const generateMutation = useGeneratePlan(startPolling);
 
-  // Ref pour éviter les retries multiples simultanés
+  // Ref pour eviter les retries multiples simultanes
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Utiliser les données client si disponibles, sinon les données server
+  // Utiliser les donnees client si disponibles, sinon les donnees server
   const currentPlan = planDetail ?? initialPlanData;
 
-  // BUG 3 FIX : handler avec distinction d'erreur réseau + retry automatique 3s
+  // Handler avec distinction d'erreur reseau + retry automatique 3s
   const handleGenerate = useCallback(() => {
-    // Annuler un retry en attente si l'utilisateur clique à nouveau
+    // Annuler un retry en attente si l'utilisateur clique a nouveau
     if (retryTimerRef.current) {
       clearTimeout(retryTimerRef.current);
       retryTimerRef.current = null;
@@ -40,21 +41,21 @@ export function DashboardContent({ initialPlanData }: DashboardContentProps) {
       onError: (error: Error) => {
         if (error instanceof TypeError && error.message === "Failed to fetch") {
           toast.error("Connexion au serveur impossible.", {
-            description: "Vérifiez votre connexion. Nouvelle tentative dans 3 secondes…",
+            description: "Verifiez votre connexion. Nouvelle tentative dans 3 secondes...",
           });
-          // Retry automatique après 3 secondes
+          // Retry automatique apres 3 secondes
           retryTimerRef.current = setTimeout(() => {
             retryTimerRef.current = null;
             generateMutation.mutate();
           }, 3000);
         } else if (error.message.includes("401") || error.message.includes("403")) {
-          toast.error("Session expirée.", {
-            description: "Reconnectez-vous pour générer votre planning.",
+          toast.error("Session expiree.", {
+            description: "Reconnectez-vous pour generer votre planning.",
           });
         } else if (!error.message.includes("Erreur API")) {
-          // Le client API affiche déjà un toast pour les erreurs HTTP connues
+          // Le client API affiche deja un toast pour les erreurs HTTP connues
           toast.error("Une erreur est survenue.", {
-            description: "Réessayez dans quelques instants.",
+            description: "Reessayez dans quelques instants.",
           });
         }
       },
@@ -69,7 +70,12 @@ export function DashboardContent({ initialPlanData }: DashboardContentProps) {
     );
   }
 
-  // État vide — pas de plan cette semaine
+  // Etat "generation en cours" — polling actif, afficher un indicateur
+  if (isGenerating && !currentPlan) {
+    return <GeneratingState />;
+  }
+
+  // Etat vide — pas de plan cette semaine
   if (!currentPlan) {
     return (
       <EmptyPlanState
@@ -79,6 +85,7 @@ export function DashboardContent({ initialPlanData }: DashboardContentProps) {
     );
   }
 
+  // FIX BLOQUANT 3 : PlanDetail est plat — id et status sont directement sur l'objet
   return (
     <div className="space-y-6">
       {/* Grille des recettes de la semaine */}
@@ -86,8 +93,9 @@ export function DashboardContent({ initialPlanData }: DashboardContentProps) {
 
       {/* Actions plan */}
       <PlanActions
-        planId={currentPlan.plan.id}
-        planStatus={currentPlan.plan.status}
+        planId={currentPlan.id}
+        planStatus={currentPlan.status}
+        onStartPolling={startPolling}
       />
     </div>
   );
@@ -110,7 +118,7 @@ function EmptyPlanState({ onGenerate, isGenerating }: EmptyPlanStateProps) {
         Votre semaine vous attend
       </h2>
       <p className="mb-6 text-sm text-neutral-600 dark:text-neutral-400">
-        Laissez Presto générer votre plan de 5 à 7 dîners adaptés à votre famille en quelques
+        Laissez Presto generer votre plan de 5 a 7 diners adaptes a votre famille en quelques
         secondes.
       </p>
       <button
@@ -127,15 +135,33 @@ function EmptyPlanState({ onGenerate, isGenerating }: EmptyPlanStateProps) {
         {isGenerating ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Génération en cours…
+            Generation en cours...
           </>
         ) : (
           <>
             <CalendarDays className="h-4 w-4" aria-hidden="true" />
-            Générer mon planning
+            Generer mon planning
           </>
         )}
       </button>
+    </div>
+  );
+}
+
+// FIX BLOQUANT 2 : etat affiche pendant le polling (generation asynchrone Celery)
+function GeneratingState() {
+  return (
+    <div className="mx-auto max-w-sm rounded-2xl border border-primary-200 bg-primary-50 p-8 text-center dark:border-primary-800 dark:bg-primary-950/30">
+      <Loader2
+        className="mx-auto mb-4 h-12 w-12 animate-spin text-primary-400"
+        aria-hidden="true"
+      />
+      <h2 className="font-serif mb-2 text-xl font-semibold text-neutral-900 dark:text-neutral-100">
+        Generation en cours...
+      </h2>
+      <p className="text-sm text-neutral-600 dark:text-neutral-400">
+        Presto compose votre planning sur mesure. Cela prend generalement moins d&apos;une minute.
+      </p>
     </div>
   );
 }

@@ -8,7 +8,6 @@
 import { apiClient } from "./client";
 import type {
   Recipe,
-  WeeklyPlan,
   ShoppingListItem,
   DietaryTag,
   DriveProvider,
@@ -83,21 +82,36 @@ export interface HouseholdResponse {
   preferences: HouseholdPreferencesAPI | null;
 }
 
+// FIX BLOQUANT 3+4 (2026-04-12) — Aligne PlannedMeal sur le backend (day_of_week int, champs enrichis)
+// Le backend retourne day_of_week comme int (1=lundi ISO) et des champs denormalises recipe_*
 export interface PlannedMeal {
   id: string;
-  day_of_week: string;
-  meal_type: "breakfast" | "lunch" | "dinner";
+  plan_id: string;
+  day_of_week: number; // 1=lundi, 7=dimanche (int ISO, pas de string)
+  slot: string; // "dinner", "lunch", etc.
   recipe_id: string;
-  servings: number;
-  recipe?: Recipe;
+  servings_adjusted: number;
+  // Champs enrichis denormalises depuis la recette (retournes par le backend)
+  recipe_title?: string | null;
+  recipe_photo_url?: string | null;
+  recipe_total_time_min?: number | null;
+  recipe_difficulty?: number | null;
+  recipe_cuisine_type?: string | null;
 }
 
+// FIX BLOQUANT 3 (2026-04-12) — PlanDetail est plat (pas de champ `plan` wrapper)
+// Le backend retourne les champs du plan directement au top-level.
+// Status backend : "draft" | "validated" | "archived"
 export interface PlanDetail {
-  plan: WeeklyPlan;
-  // FIX Phase 1 mature (review 2026-04-12) — Mismatch D : backend retourne `meals`, pas `planned_meals`
-  // Schéma Pydantic PlanDetail — champ : meals
+  id: string;
+  household_id: string;
+  week_start: string; // ISO date "YYYY-MM-DD"
+  status: "draft" | "validated" | "archived";
+  validated_at?: string | null;
+  created_at: string;
+  updated_at: string;
   meals: PlannedMeal[];
-  recipes: Recipe[];
+  shopping_list?: ShoppingListItem[];
 }
 
 export interface GeneratePlanResponse {
@@ -160,12 +174,30 @@ export async function generatePlan(): Promise<GeneratePlanResponse> {
   return apiClient.post<GeneratePlanResponse>("/api/v1/plans/generate", body);
 }
 
+// FIX BLOQUANT 3 (2026-04-12) — Normalise la reponse API vers PlanDetail plat
+// Le backend retourne deja une structure plate, on s'assure que les champs sont presents
+function normalizePlanDetail(raw: Record<string, unknown>): PlanDetail {
+  return {
+    id: raw.id as string,
+    household_id: raw.household_id as string,
+    week_start: raw.week_start as string,
+    status: raw.status as PlanDetail["status"],
+    validated_at: (raw.validated_at as string | null) ?? null,
+    created_at: raw.created_at as string,
+    updated_at: raw.updated_at as string,
+    meals: (raw.meals as PlannedMeal[]) ?? [],
+    shopping_list: (raw.shopping_list as ShoppingListItem[]) ?? [],
+  };
+}
+
 export async function getPlan(id: string): Promise<PlanDetail> {
-  return apiClient.get<PlanDetail>(`/api/v1/plans/${id}`);
+  const raw = await apiClient.get<Record<string, unknown>>(`/api/v1/plans/${id}`);
+  return normalizePlanDetail(raw);
 }
 
 export async function getCurrentPlan(): Promise<PlanDetail> {
-  return apiClient.get<PlanDetail>("/api/v1/plans/me/current");
+  const raw = await apiClient.get<Record<string, unknown>>("/api/v1/plans/me/current");
+  return normalizePlanDetail(raw);
 }
 
 export async function validatePlan(planId: string): Promise<void> {

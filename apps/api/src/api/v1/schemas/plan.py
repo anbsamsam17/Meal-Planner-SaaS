@@ -10,6 +10,32 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+
+# ---- Resume recette (pour le champ recipes[] de WeeklyPlanDetail) ----
+
+class RecipeSummary(BaseModel):
+    """
+    Resume d'une recette incluse dans un plan hebdomadaire.
+
+    FIX BLOQUANT 5 (audit 2026-04-13) : le frontend attend un tableau recipes[]
+    dans la reponse WeeklyPlanDetail pour construire les RecipeCards via
+    recipesById.get(meal.recipe_id). Ce schema fournit les champs necessaires
+    sans dupliquer le RecipeOut complet (pas de slug, source, servings, etc.).
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    title: str
+    slug: str | None = None
+    photo_url: str | None = None
+    total_time_min: int | None = None
+    difficulty: int | None = None
+    cuisine_type: str | None = None
+    tags: list[str] = []
+    quality_score: float | None = None
+
+
 # ---- Repas planifié ----
 
 class PlannedMealRead(BaseModel):
@@ -63,7 +89,14 @@ class WeeklyPlanRead(BaseModel):
 
 
 class WeeklyPlanDetail(BaseModel):
-    """Plan hebdomadaire complet avec repas et liste de courses."""
+    """
+    Plan hebdomadaire complet avec repas, recettes et liste de courses.
+
+    FIX BLOQUANT 5 (audit 2026-04-13) : ajout du champ recipes[] pour le frontend.
+    Le frontend indexe les recettes par ID (recipesById) pour afficher les RecipeCards.
+    Les champs denormalises dans PlannedMealRead (recipe_title, etc.) sont conserves
+    pour la retrocompatibilite.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -75,6 +108,7 @@ class WeeklyPlanDetail(BaseModel):
     created_at: datetime
     updated_at: datetime
     meals: list[PlannedMealRead] = []
+    recipes: list[RecipeSummary] = []
     shopping_list: list[ShoppingListItemRead] = []
 
 

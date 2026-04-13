@@ -33,6 +33,7 @@ from src.api.v1.schemas.common import TaskResponse
 from src.api.v1.schemas.plan import (
     GeneratePlanRequest,
     PlannedMealRead,
+    RecipeSummary,
     ShoppingListItemRead,
     SwapMealRequest,
     ValidatePlanRequest,
@@ -159,15 +160,14 @@ async def generate_plan(
     """
     household_id = await _get_user_household_id(session, user.user_id)
 
-    # Import Celery task (import tardif pour éviter la circularité).
-    # FIX PROD (2026-04-12) : si le worker Celery ou Redis n'est pas encore déployé
-    # (ConnectionRefusedError, kombu.exceptions.OperationalError), on retourne un 503
-    # explicite plutôt qu'une stacktrace 500.
-    # Le message guide l'utilisateur sans exposer les détails d'infra.
+    # FIX BLOQUANT 1 (audit 2026-04-13) : utiliser send_task() au lieu d'importer
+    # le module worker. L'API n'a pas acces aux sources du worker (conteneur separe).
+    # celery_sender est une instance Celery legere connectee uniquement au broker Redis.
     try:
-        from src.agents.weekly_planner.tasks import generate_plan_task
+        from src.core.celery_sender import celery_sender
 
-        task = generate_plan_task.apply_async(
+        task = celery_sender.send_task(
+            "weekly_planner.generate_plan",
             kwargs={
                 "household_id": str(household_id),
                 "week_start_iso": body.week_start.isoformat(),
@@ -702,7 +702,7 @@ async def _get_plan_detail(session: AsyncSession, plan_id: Any) -> WeeklyPlanDet
             detail=f"Plan {plan_id} introuvable.",
         )
 
-    # Repas avec jointure recettes (évite N+1) — même session
+    # Repas avec jointure recettes (evite N+1) -- meme session
     meals_result = await session.execute(
         text(
             """
@@ -724,7 +724,36 @@ async def _get_plan_detail(session: AsyncSession, plan_id: Any) -> WeeklyPlanDet
     )
     meals_rows = meals_result.mappings().all()
 
-    # Liste de courses — même session
+    # FIX BLOQUANT 5 (audit 2026-04-13) : recuperer les recettes completes
+    # pour le champ recipes[] attendu par le frontend (recipesById lookup).
+    recipe_ids = list({str(row["recipe_id"]) for row in meals_rows})
+
+    recipes: list[RecipeSummary] = []
+    if recipe_ids:
+        recipes_result = await session.execute(
+            text(
+                """
+                SELECT id, title, slug, photo_url, total_time_min,
+                       difficulty, cuisine_type, tags, quality_score
+                FROM recipes
+                WHERE id = ANY(:ids)
+                """
+            ),
+            {"ids": recipe_ids},
+        )
+        recipes_rows = recipes_result.mappings().all()
+
+        for r_row in recipes_rows:
+            r_dict = dict(r_row)
+            # tags peut etre une string JSON ou deja une liste
+            tags_raw = r_dict.get("tags")
+            if isinstance(tags_raw, str):
+                r_dict["tags"] = json.loads(tags_raw)
+            elif tags_raw is None:
+                r_dict["tags"] = []
+            recipes.append(RecipeSummary.model_validate(r_dict))
+
+    # Liste de courses -- meme session
     sl_result = await session.execute(
         text("SELECT items FROM shopping_lists WHERE plan_id = :plan_id"),
         {"plan_id": str(plan_id)},
@@ -751,5 +780,6 @@ async def _get_plan_detail(session: AsyncSession, plan_id: Any) -> WeeklyPlanDet
         created_at=plan_dict["created_at"],
         updated_at=plan_dict["updated_at"],
         meals=meals,
+        recipes=recipes,
         shopping_list=shopping_list,
     )

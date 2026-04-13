@@ -36,7 +36,8 @@ export default function ShoppingListPage() {
 
   // Récupérer l'ID du plan courant si non fourni en query
   const { data: currentPlan } = useCurrentPlan();
-  const planId = planIdFromQuery ?? currentPlan?.plan.id ?? null;
+  // FIX BLOQUANT 3 : PlanDetail est plat — id directement sur l'objet
+  const planId = planIdFromQuery ?? currentPlan?.id ?? null;
 
   const { data: items = [], isLoading, error } = useShoppingList(planId);
   const toggleMutation = useToggleItem(planId ?? "");

@@ -1,8 +1,10 @@
 // apps/web/src/hooks/use-plan.ts
 // Hooks TanStack Query pour les plans hebdomadaires
-// Couvre : plan courant, plan par ID, génération, swap recette
+// Couvre : plan courant, plan par ID, generation, swap recette
+// FIX BLOQUANT 2 (2026-04-12) : polling conditionnel apres generation asynchrone (Celery)
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getCurrentPlan,
@@ -14,21 +16,29 @@ import {
 import type { PlanDetail } from "@/lib/api/endpoints";
 import { toast } from "sonner";
 
-// Clés de requête stables
+// Cles de requete stables
 export const PLAN_QUERY_KEYS = {
   current: ["plans", "current"] as const,
   byId: (id: string) => ["plans", id] as const,
 };
 
+// Timeout max pour le polling (60 secondes)
+const POLLING_INTERVAL_MS = 3_000;
+const POLLING_TIMEOUT_MS = 60_000;
+
 // Hook — Plan courant (GET /api/v1/plans/me/current)
+// FIX BLOQUANT 2 : polling conditionnel toutes les 3s pendant la generation, timeout 60s
 export function useCurrentPlan() {
-  return useQuery<PlanDetail | null, Error>({
+  const [isGenerating, setIsGenerating] = useState(false);
+  const pollingStartRef = useRef<number>(0);
+
+  const query = useQuery<PlanDetail | null, Error>({
     queryKey: PLAN_QUERY_KEYS.current,
     queryFn: async () => {
       try {
         return await getCurrentPlan();
       } catch (err) {
-        // 404 = pas de plan pour la semaine → état valide, retourner null
+        // 404 = pas de plan pour la semaine → etat valide, retourner null
         if (err instanceof Error && err.message.includes("404")) {
           return null;
         }
@@ -36,11 +46,42 @@ export function useCurrentPlan() {
       }
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
+    // Polling toutes les 3s UNIQUEMENT pendant la generation
+    refetchInterval: isGenerating ? POLLING_INTERVAL_MS : false,
     retry: (failureCount, err) => {
       if (err.message.includes("401") || err.message.includes("403")) return false;
       return failureCount < 2;
     },
   });
+
+  // Arreter le polling quand un plan est trouve OU timeout depasse
+  useEffect(() => {
+    if (!isGenerating) return;
+
+    // Plan trouve pendant le polling → succes
+    if (query.data) {
+      setIsGenerating(false);
+      toast.success("Votre planning est pret !");
+      return;
+    }
+
+    // Timeout : arreter le polling apres 60s
+    const elapsed = Date.now() - pollingStartRef.current;
+    if (elapsed > POLLING_TIMEOUT_MS) {
+      setIsGenerating(false);
+      toast.error("La generation prend plus de temps que prevu.", {
+        description: "Rafraichissez la page dans quelques instants.",
+      });
+    }
+  }, [query.data, isGenerating]);
+
+  // Demarrer le polling (appele depuis useGeneratePlan)
+  const startPolling = () => {
+    pollingStartRef.current = Date.now();
+    setIsGenerating(true);
+  };
+
+  return { ...query, isGenerating, startPolling };
 }
 
 // Hook — Plan par ID (GET /api/v1/plans/{id})
@@ -56,24 +97,28 @@ export function usePlan(id: string | null) {
   });
 }
 
-// Mutation — Générer un nouveau plan (POST /api/v1/plans/generate)
-export function useGeneratePlan() {
+// Mutation — Generer un nouveau plan (POST /api/v1/plans/generate)
+// FIX BLOQUANT 2 : apres le 202, on declenche le polling via startPolling()
+// Le toast de succes est affiche par useCurrentPlan quand le plan arrive.
+export function useGeneratePlan(startPolling?: () => void) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: generatePlan,
     onSuccess: () => {
-      // Invalider le cache du plan courant pour forcer un re-fetch
+      // Invalider le cache pour que le prochain poll demarre avec un etat frais
       void queryClient.invalidateQueries({ queryKey: PLAN_QUERY_KEYS.current });
-      toast.success("Plan généré !", {
-        description: "Votre planning de la semaine est prêt.",
+      // Demarrer le polling conditionnel (toutes les 3s, timeout 60s)
+      startPolling?.();
+      toast.info("Generation en cours...", {
+        description: "Votre planning sera pret dans quelques secondes.",
       });
     },
     onError: (err: Error) => {
-      // Le client API affiche déjà un toast pour les erreurs HTTP
+      // Le client API affiche deja un toast pour les erreurs HTTP
       // Afficher seulement les erreurs non-HTTP
       if (!err.message.includes("Erreur API")) {
-        toast.error("Génération impossible", {
+        toast.error("Generation impossible", {
           description: err.message,
         });
       }

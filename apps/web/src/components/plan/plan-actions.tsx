@@ -8,17 +8,19 @@ import { CheckCircle, RefreshCw, ShoppingCart, Loader2 } from "lucide-react";
 import { useValidatePlan, useGeneratePlan } from "@/hooks/use-plan";
 import { cn } from "@/lib/utils";
 
+// FIX BLOQUANT 3 (2026-04-12) — status backend : "draft" | "validated" | "archived"
 interface PlanActionsProps {
   planId: string;
-  planStatus: "draft" | "confirmed" | "completed";
+  planStatus: "draft" | "validated" | "archived";
+  onStartPolling?: () => void;
   className?: string;
 }
 
-export function PlanActions({ planId, planStatus, className }: PlanActionsProps) {
+export function PlanActions({ planId, planStatus, onStartPolling, className }: PlanActionsProps) {
   const validateMutation = useValidatePlan();
-  const generateMutation = useGeneratePlan();
+  const generateMutation = useGeneratePlan(onStartPolling);
 
-  const isValidated = planStatus === "confirmed" || planStatus === "completed";
+  const isValidated = planStatus === "validated" || planStatus === "archived";
 
   return (
     <div className={cn("flex flex-col gap-3 sm:flex-row", className)}>
