@@ -130,7 +130,7 @@ async def _get_user_household_id(session: AsyncSession, user_id: str) -> UUID:
         f"Rate limit : {LIMIT_LLM_PLAN_USER} par utilisateur (LLM coûteux)."
     ),
     response_model=TaskResponse,
-    status_code=status.HTTP_202_ACCEPTED,
+    status_code=status.HTTP_200_OK,
     responses={
         status.HTTP_404_NOT_FOUND: {"description": "L'utilisateur n'appartient à aucun foyer."},
         429: {"description": "Rate limit LLM dépassé (10 plans/heure)."},
@@ -160,53 +160,85 @@ async def generate_plan(
     """
     household_id = await _get_user_household_id(session, user.user_id)
 
-    # FIX BLOQUANT 1 (audit 2026-04-13) : utiliser send_task() au lieu d'importer
-    # le module worker. L'API n'a pas acces aux sources du worker (conteneur separe).
-    # celery_sender est une instance Celery legere connectee uniquement au broker Redis.
+    logger.info("plan_generate_sync_start", household_id=str(household_id), week_start=str(body.week_start))
+
+    # Génération SYNCHRONE — sélectionne des recettes et crée le plan directement
+    # Plus fiable que Celery pour la v1 (pas de dépendance Redis inter-containers)
     try:
-        from src.core.celery_sender import get_celery_sender
+        import random
 
-        sender = get_celery_sender()
-        logger.info("celery_send_task_attempt", broker=str(sender.conf.broker_url)[:50], household_id=str(household_id))
-        task = sender.send_task(
-            "weekly_planner.generate_plan",
-            kwargs={
-                "household_id": str(household_id),
-                "week_start_iso": body.week_start.isoformat(),
-                "num_dinners": body.num_dinners,
-            },
-            queue="llm",
+        # 1. Récupérer des recettes candidates (fallback sans embeddings)
+        candidates_result = await session.execute(
+            text("""
+                SELECT id, title, cuisine_type, total_time_min, difficulty
+                FROM recipes
+                WHERE quality_score >= 0.6
+                ORDER BY RANDOM()
+                LIMIT :limit
+            """),
+            {"limit": body.num_dinners * 5},
         )
-        task_id = task.id
+        candidates = candidates_result.mappings().all()
+
+        if len(candidates) < body.num_dinners:
+            raise HTTPException(404, "Pas assez de recettes en base pour générer un plan.")
+
+        # 2. Sélectionner N recettes diversifiées (cuisines variées)
+        selected = []
+        cuisines_seen: set[str] = set()
+        for c in candidates:
+            if len(selected) >= body.num_dinners:
+                break
+            cuisine = c.get("cuisine_type", "")
+            # Favoriser la diversité de cuisines
+            if cuisine not in cuisines_seen or len(selected) >= body.num_dinners - 2:
+                selected.append(c)
+                cuisines_seen.add(cuisine)
+
+        # Compléter si pas assez
+        if len(selected) < body.num_dinners:
+            remaining = [c for c in candidates if c not in selected]
+            selected.extend(remaining[:body.num_dinners - len(selected)])
+
+        # 3. Créer le plan en base
+        plan_result = await session.execute(
+            text("""
+                INSERT INTO weekly_plans (id, household_id, week_start, status)
+                VALUES (gen_random_uuid(), :hid, :ws, 'draft')
+                RETURNING id
+            """),
+            {"hid": str(household_id), "ws": str(body.week_start)},
+        )
+        plan_id = str(plan_result.fetchone()[0])
+
+        # 4. Insérer les meals (1 par jour, du lundi au dimanche)
+        for i, recipe in enumerate(selected):
+            day_of_week = i + 1  # 1=lundi, 2=mardi, etc.
+            await session.execute(
+                text("""
+                    INSERT INTO planned_meals (id, plan_id, day_of_week, slot, recipe_id, servings_adjusted)
+                    VALUES (gen_random_uuid(), :pid, :dow, 'dinner', :rid, 4)
+                """),
+                {"pid": plan_id, "dow": day_of_week, "rid": str(recipe["id"])},
+            )
+
+        await session.commit()
+
+        logger.info("plan_generate_sync_done", plan_id=plan_id, recipes=len(selected))
+
+        return TaskResponse(
+            task_id=plan_id,
+            status="completed",
+            message=f"Plan de {len(selected)} dîners créé pour la semaine du {body.week_start}.",
+            poll_url="/api/v1/plans/me/current",
+        )
+
+    except HTTPException:
+        raise
     except Exception as exc:
-        logger.warning(
-            "plan_generate_celery_unavailable",
-            household_id=str(household_id),
-            error=str(exc),
-            error_type=type(exc).__name__,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=(
-                "Le service de génération de plans est temporairement indisponible. "
-                "Réessayez dans quelques minutes."
-            ),
-        )
-
-    logger.info(
-        "plan_generate_task_queued",
-        household_id=str(household_id),
-        task_id=task_id,
-        week_start=str(body.week_start),
-        num_dinners=body.num_dinners,
-    )
-
-    return TaskResponse(
-        task_id=task_id,
-        status="pending",
-        message=f"Génération du plan pour la semaine du {body.week_start} en cours.",
-        poll_url="/api/v1/plans/me/current",
-    )
+        await session.rollback()
+        logger.error("plan_generate_sync_error", error=str(exc), error_type=type(exc).__name__)
+        raise HTTPException(500, f"Erreur lors de la génération : {type(exc).__name__}")
 
 
 # ---- GET /plans/me/current ----
