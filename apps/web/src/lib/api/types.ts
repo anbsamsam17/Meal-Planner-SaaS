@@ -11,10 +11,11 @@ export interface Recipe {
   title: string;
   // description peut être null si la recette n'en a pas encore (API retourne null)
   description: string | null;
-  // image_url est le champ normalisé côté frontend
-  image_url: string | null;
-  // photo_url est l'alias retourné par certains endpoints de l'API — normalisé dans fetchRecipe
+  // photo_url est le champ canonique retourné par l'API — à utiliser en priorité
   photo_url?: string | null;
+  // image_url : alias de compatibilité — normalisé depuis photo_url dans fetchRecipe (page.tsx)
+  // Utiliser photo_url en priorité : `recipe.photo_url || recipe.image_url || placeholder`
+  image_url?: string | null;
   prep_time_minutes: number | null;
   cook_time_minutes: number | null;
   total_time_minutes: number | null;
@@ -44,9 +45,17 @@ export interface Ingredient {
 }
 
 // Instruction de préparation
+// L'API peut retourner deux formats selon l'endpoint :
+//   - Format normalisé : { step_number, description, duration_seconds, image_url }
+//   - Format brut API  : { step, text }
+// Les deux champs sont déclarés optionnels pour absorber les deux variantes.
 export interface Instruction {
-  step_number: number;
-  description: string;
+  // Format normalisé (utilisé par instruction-steps.tsx)
+  step_number?: number;
+  description?: string;
+  // Format brut retourné par certains endpoints
+  step?: number;
+  text?: string;
   duration_seconds: number | null;
   image_url: string | null;
 }

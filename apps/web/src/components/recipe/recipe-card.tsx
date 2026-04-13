@@ -44,7 +44,7 @@ export function RecipeCard({
   onSwap,
   className,
 }: RecipeCardProps) {
-  const imageUrl = recipe.image_url ?? getPlaceholderImage(recipe.id);
+  const imageUrl = recipe.photo_url || recipe.image_url || getPlaceholderImage(recipe.id);
   const time = recipe.total_time_minutes;
   // rating_average est 1.0–5.0, on l'affiche directement avec .toFixed(1)
   const rating = recipe.rating_average != null ? Number(recipe.rating_average).toFixed(1) : null;

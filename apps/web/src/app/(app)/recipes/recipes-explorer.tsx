@@ -41,7 +41,8 @@ export function RecipesExplorer() {
     ...filters,
     q: debouncedQuery || undefined,
     ...(activeQuickFilter === "quick" && { max_time: 15 }),
-    ...(activeQuickFilter === "dessert" && { diet: "dessert" }),
+    // "dessert" n'est pas un DietaryTag — on filtre via recherche textuelle
+    ...(activeQuickFilter === "dessert" && { q: "dessert" }),
     ...(activeQuickFilter === "vegetarian" && { diet: "vegetarian" }),
     ...(activeQuickFilter === "french" && { cuisine: "française" }),
     ...(activeQuickFilter === "indian" && { cuisine: "indienne" }),

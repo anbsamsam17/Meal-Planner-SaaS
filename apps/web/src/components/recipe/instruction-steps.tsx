@@ -19,20 +19,28 @@ export function InstructionSteps({ instructions = [] }: InstructionStepsProps) {
     );
   }
 
+  // Normaliser les deux formats API : { step_number, description } ou { step, text }
+  const normalized = instructions.map((s) => ({
+    stepNumber: s.step_number ?? s.step ?? 0,
+    description: s.description ?? s.text ?? "",
+    duration_seconds: s.duration_seconds,
+    image_url: s.image_url,
+  }));
+
   // Trier par numéro d'étape
-  const sorted = [...instructions].sort((a, b) => a.step_number - b.step_number);
+  const sorted = [...normalized].sort((a, b) => a.stepNumber - b.stepNumber);
 
   return (
     <ol className="space-y-6" aria-label="Étapes de préparation">
       {sorted.map((step) => (
-        <li key={step.step_number} className="flex gap-4">
+        <li key={step.stepNumber} className="flex gap-4">
           {/* Numéro d'étape */}
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30">
             <span
               className="text-sm font-bold text-primary-600 dark:text-primary-400"
               aria-hidden="true"
             >
-              {step.step_number}
+              {step.stepNumber}
             </span>
           </div>
 
@@ -68,7 +76,7 @@ export function InstructionSteps({ instructions = [] }: InstructionStepsProps) {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={step.image_url}
-                  alt={`Étape ${step.step_number}`}
+                  alt={`Étape ${step.stepNumber}`}
                   className="w-full object-cover"
                   loading="lazy"
                 />

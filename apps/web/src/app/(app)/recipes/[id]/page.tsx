@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: RecipePageProps): Promise<Met
     openGraph: {
       title: recipe.title,
       description: recipe.description ?? undefined,
-      images: recipe.image_url ? [{ url: recipe.image_url }] : [],
+      images: (recipe.photo_url || recipe.image_url) ? [{ url: (recipe.photo_url || recipe.image_url) as string }] : [],
     },
   };
 }
@@ -121,7 +121,7 @@ export default async function RecipePage({ params }: RecipePageProps) {
   const placeholderUrl =
     PLACEHOLDER_IMAGES[recipe.id.charCodeAt(0) % PLACEHOLDER_IMAGES.length] ??
     PLACEHOLDER_IMAGES[0];
-  const heroImageUrl = recipe.image_url ?? placeholderUrl;
+  const heroImageUrl = recipe.photo_url || recipe.image_url || placeholderUrl;
 
   // Protéger rating_average — peut être null ou undefined selon l'endpoint
   const ratingAverage = recipe.rating_average != null ? Number(recipe.rating_average) : null;

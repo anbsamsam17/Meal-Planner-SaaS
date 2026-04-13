@@ -27,17 +27,27 @@ const DIET_OPTIONS: { value: DietaryTag; label: string }[] = [
   { value: "nut-free", label: "Sans fruits à coque" },
 ];
 
-const CUISINE_OPTIONS = [
-  "Française",
-  "Italienne",
-  "Japonaise",
-  "Mexicaine",
-  "Indienne",
-  "Espagnole",
-  "Thaïlandaise",
-  "Marocaine",
-  "Américaine",
-  "Chinoise",
+// Valeurs en minuscules — c'est le format stocké en DB et attendu par l'API (?cuisine=française)
+// Le label affiché est capitalisé pour l'UI, mais la valeur envoyée est en minuscule
+const CUISINE_OPTIONS: { value: string; label: string }[] = [
+  { value: "française", label: "Française" },
+  { value: "italienne", label: "Italienne" },
+  { value: "britannique", label: "Britannique" },
+  { value: "espagnole", label: "Espagnole" },
+  { value: "américaine", label: "Américaine" },
+  { value: "indienne", label: "Indienne" },
+  { value: "thaïlandaise", label: "Thaïlandaise" },
+  { value: "chinoise", label: "Chinoise" },
+  { value: "japonaise", label: "Japonaise" },
+  { value: "mexicaine", label: "Mexicaine" },
+  { value: "turque", label: "Turque" },
+  { value: "grecque", label: "Grecque" },
+  { value: "vietnamienne", label: "Vietnamienne" },
+  { value: "marocaine", label: "Marocaine" },
+  { value: "jamaïcaine", label: "Jamaïcaine" },
+  { value: "canadienne", label: "Canadienne" },
+  { value: "polonaise", label: "Polonaise" },
+  { value: "coréenne", label: "Coréenne" },
 ];
 
 const DIFFICULTY_LABELS: Record<number, string> = {
@@ -225,13 +235,13 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
           Cuisine
         </h3>
         <div className="flex flex-wrap gap-2">
-          {CUISINE_OPTIONS.map((cuisine) => (
+          {CUISINE_OPTIONS.map(({ value, label }) => (
             <Chip
-              key={cuisine}
-              label={cuisine}
-              active={filters.cuisine === cuisine}
+              key={value}
+              label={label}
+              active={filters.cuisine === value}
               onClick={() =>
-                updateFilter("cuisine", filters.cuisine === cuisine ? undefined : cuisine)
+                updateFilter("cuisine", filters.cuisine === value ? undefined : value)
               }
             />
           ))}
