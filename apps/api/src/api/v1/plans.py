@@ -164,9 +164,11 @@ async def generate_plan(
     # le module worker. L'API n'a pas acces aux sources du worker (conteneur separe).
     # celery_sender est une instance Celery legere connectee uniquement au broker Redis.
     try:
-        from src.core.celery_sender import celery_sender
+        from src.core.celery_sender import get_celery_sender
 
-        task = celery_sender.send_task(
+        sender = get_celery_sender()
+        logger.info("celery_send_task_attempt", broker=str(sender.conf.broker_url)[:50], household_id=str(household_id))
+        task = sender.send_task(
             "weekly_planner.generate_plan",
             kwargs={
                 "household_id": str(household_id),

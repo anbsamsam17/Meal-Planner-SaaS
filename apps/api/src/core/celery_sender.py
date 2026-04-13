@@ -1,25 +1,19 @@
-"""
-Instance Celery legere pour l'API -- envoie des taches au worker sans importer ses modules.
-
-Utilise send_task() pour envoyer des taches par nom (string) au broker Redis.
-Le worker n'a PAS besoin d'etre importe -- seule la connexion Redis est requise.
-
-Reutilisable dans tous les endpoints qui declenchent des taches asynchrones :
-- POST /plans/generate  (weekly_planner.generate_plan)
-- POST /books/generate  (book_generator.generate_book)   -- Phase 2
-"""
+"""Instance Celery légère pour l'API — envoie des tâches au worker via Redis."""
 
 import os
-
 from celery import Celery
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+_celery_instance: Celery | None = None
 
-# Normalisation : retirer un eventuel trailing slash avant d'ajouter le numero de DB
-_redis_base = REDIS_URL.rstrip("/")
 
-celery_sender = Celery(
-    "presto_api_sender",
-    broker=f"{_redis_base}/0",
-    backend=f"{_redis_base}/2",
-)
+def get_celery_sender() -> Celery:
+    """Retourne l'instance Celery (lazy init pour lire REDIS_URL au bon moment)."""
+    global _celery_instance
+    if _celery_instance is None:
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379").rstrip("/")
+        _celery_instance = Celery(
+            "presto_api_sender",
+            broker=f"{redis_url}/0",
+            backend=f"{redis_url}/2",
+        )
+    return _celery_instance
