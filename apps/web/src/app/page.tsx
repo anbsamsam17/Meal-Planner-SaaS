@@ -189,7 +189,7 @@ function StaticRecipeCard({ recipe, priority = false }: StaticRecipeCardProps) {
         )}
 
         {/* Badge temps — overlay haut-droite terracotta */}
-        {time > 0 && (
+        {time != null && time > 0 && (
           <span className="absolute right-3 top-3 rounded-full bg-[#E2725B]/90 px-3 py-1.5 text-xs font-semibold text-white shadow-sm">
             {time} MIN
           </span>

@@ -154,6 +154,10 @@ async def retrieve_candidate_recipes(
     les recettes les mieux notées (quality_score DESC) correspondant
     aux contraintes.
 
+    BUG 3 FIX (2026-04-12) : si aucun candidat trouvé via pgvector (recettes
+    sans embeddings en prod), fallback sur les 5 meilleures recettes par
+    quality_score sans JOIN recipe_embeddings pour éviter le crash du planner.
+
     Args:
         session: Session SQLAlchemy async.
         household_id: UUID du foyer.
@@ -183,6 +187,21 @@ async def retrieve_candidate_recipes(
             constraints=constraints,
             recent_ids=recent_ids,
             k=k,
+        )
+
+    # BUG 3 FIX (2026-04-12) : fallback sans pgvector si aucun résultat.
+    # Les recettes seed en prod n'ont pas d'embeddings → JOIN recipe_embeddings = 0 lignes.
+    # On retourne les meilleures recettes par quality_score sans contrainte embedding.
+    if not candidates:
+        logger.warning(
+            "recipe_retriever_no_candidates_pgvector_fallback",
+            household_id=str(household_id),
+            hint="Aucune recette avec embedding trouvée — fallback quality_score sans pgvector.",
+        )
+        candidates = await _retrieve_by_quality_no_embedding(
+            session=session,
+            recent_ids=recent_ids,
+            k=min(k, 5),
         )
 
     logger.info(
@@ -343,5 +362,65 @@ async def _retrieve_by_quality(
 
     result = await session.execute(text(sql), params)
     rows = result.mappings().all()
+
+    return [dict(row) for row in rows]
+
+
+async def _retrieve_by_quality_no_embedding(
+    session: AsyncSession,
+    recent_ids: list[str],
+    k: int = 5,
+) -> list[dict]:
+    """
+    Fallback ultime : classement par quality_score SANS JOIN recipe_embeddings.
+
+    BUG 3 FIX (2026-04-12) : utilisé quand les recettes seed en production
+    n'ont pas encore d'embeddings pgvector. Retourne les k meilleures recettes
+    par quality_score depuis la table recipes directement.
+
+    Args:
+        session: Session SQLAlchemy async.
+        recent_ids: IDs à exclure (anti-répétition).
+        k: Nombre de candidates (plafonné à 5 pour le fallback).
+
+    Returns:
+        Liste de dicts recettes candidates (sans champ distance).
+    """
+    params: dict = {"quality_min": 0.6, "k": k}
+
+    excluded_ids_clause = ""
+    if recent_ids:
+        excluded_ids_clause = "AND r.id::text != ALL(:recent_ids)"
+        params["recent_ids"] = recent_ids
+
+    sql = f"""
+        SELECT
+            r.id::text,
+            r.title,
+            r.cuisine_type,
+            r.prep_time_min,
+            r.cook_time_min,
+            r.total_time_min,
+            r.difficulty,
+            r.tags,
+            r.quality_score,
+            r.servings,
+            r.photo_url,
+            0.0 AS distance
+        FROM recipes r
+        WHERE r.quality_score >= :quality_min
+          {excluded_ids_clause}
+        ORDER BY r.quality_score DESC
+        LIMIT :k
+    """
+
+    result = await session.execute(text(sql), params)
+    rows = result.mappings().all()
+
+    logger.info(
+        "recipe_retriever_no_embedding_fallback",
+        returned=len(rows),
+        hint="Recettes retournées sans embedding — lancer le pipeline RECIPE_SCOUT pour générer les embeddings.",
+    )
 
     return [dict(row) for row in rows]

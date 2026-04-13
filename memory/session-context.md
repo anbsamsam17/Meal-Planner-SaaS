@@ -16,6 +16,22 @@ links:
 
 ---
 
+## Session du : 2026-04-12 — Fix crash page /recipes/[id] (nextjs-developer)
+
+**Scope** : `apps/web/src/**`
+**Statut** : Terminé — 5 fichiers modifiés, 1 fichier créé, `pnpm typecheck` OK (0 erreur)
+
+**Cause racine** : L'API retourne `photo_url` (pas `image_url`) + `description: null` + `total_time_minutes: null`. Le type `Recipe` déclarait ces champs comme non-nullable, provoquant un crash React non capturé (pas d'`error.tsx`).
+
+**Modifications** :
+- `lib/api/types.ts` : `description`, `photo_url?`, `prep/cook/total_time_minutes`, `difficulty`, `cuisine` passés en `| null`. Champs optionnels tolérés.
+- `recipes/[id]/page.tsx` : normalisation `photo_url → image_url` dans `fetchRecipe`, guard `!= null` sur tous les champs nullable, placeholder Unsplash déterministe, try/catch global, `DIFFICULTY_LABELS` en `Record<string,string>`.
+- `recipes/[id]/error.tsx` : créé — Error Boundary App Router pour la route.
+- `components/recipe/ingredient-list.tsx` : guard `Array.isArray` + message "Ingrédients non disponibles" si liste vide.
+- `app/page.tsx` : fix `time != null &&` (déclenché par changement de type).
+
+---
+
 ## Session du : 2026-04-12 — Intégration design premium food (nextjs-developer)
 
 **Scope** : `apps/web/src/**` + `apps/web/tailwind.config.ts`

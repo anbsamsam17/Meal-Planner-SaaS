@@ -9,14 +9,18 @@
 export interface Recipe {
   id: string;
   title: string;
-  description: string;
+  // description peut être null si la recette n'en a pas encore (API retourne null)
+  description: string | null;
+  // image_url est le champ normalisé côté frontend
   image_url: string | null;
-  prep_time_minutes: number;
-  cook_time_minutes: number;
-  total_time_minutes: number;
+  // photo_url est l'alias retourné par certains endpoints de l'API — normalisé dans fetchRecipe
+  photo_url?: string | null;
+  prep_time_minutes: number | null;
+  cook_time_minutes: number | null;
+  total_time_minutes: number | null;
   servings: number;
-  difficulty: "easy" | "medium" | "hard";
-  cuisine: string; // Ex: "Français", "Italien", "Japonais"
+  difficulty: "easy" | "medium" | "hard" | null;
+  cuisine: string | null; // Ex: "Français", "Italien", "Japonais"
   dietary_tags: DietaryTag[];
   ingredients: Ingredient[];
   instructions: Instruction[];

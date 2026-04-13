@@ -35,12 +35,23 @@ const CATEGORY_ORDER: IngredientCategory[] = [
 export function IngredientList({ ingredients, servings, servingsOverride }: IngredientListProps) {
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
 
+  // Défense : l'API peut retourner null ou undefined si la recette n'a pas d'ingrédients
+  const safeIngredients = Array.isArray(ingredients) ? ingredients : [];
+
+  if (safeIngredients.length === 0) {
+    return (
+      <p className="text-sm text-neutral-400 dark:text-neutral-500">
+        Les ingrédients ne sont pas disponibles pour cette recette.
+      </p>
+    );
+  }
+
   // Ratio d'ajustement des quantités selon le nombre de portions
   const ratio = servingsOverride ? servingsOverride / servings : 1;
 
   // Grouper par catégorie
   const byCategory = new Map<IngredientCategory, Ingredient[]>();
-  for (const ingredient of ingredients) {
+  for (const ingredient of safeIngredients) {
     const group = byCategory.get(ingredient.category) ?? [];
     group.push(ingredient);
     byCategory.set(ingredient.category, group);

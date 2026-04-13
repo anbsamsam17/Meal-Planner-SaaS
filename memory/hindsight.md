@@ -33,6 +33,14 @@ Claude doit ajouter une entrée à la fin de chaque session significative :
 
 ---
 
+## 2026-04-12 — Fix crash /recipes/[id] — mismatch champ API photo_url vs image_url (nextjs-developer)
+
+**Erreur commise** : Le type `Recipe` déclarait `image_url` comme non-nullable et `photo_url` absent. L'API retourne `photo_url` (null) au lieu de `image_url`. Le composant crashait silencieusement sans Error Boundary.
+**Règle à retenir** : Toujours vérifier l'alias de champ entre le schéma Python (Pydantic) et le type TypeScript frontend avant de typer strictement. Un champ `image_url` côté TS peut correspondre à `photo_url` côté API. Normaliser dans la couche `fetchXxx()` côté serveur.
+**Comment l'éviter** : (1) Lire le schéma Pydantic du backend avant d'écrire l'interface TypeScript. (2) Toujours créer un `error.tsx` dans chaque route `[id]` au moment de créer `page.tsx`. (3) Typer tous les champs textuels et numériques venant de l'API en `| null` par défaut — le backend Python peut retourner null sur n'importe quel champ optionnel.
+
+---
+
 ## 2026-04-12 — Landing enrichie + Auth callback (nextjs-developer)
 
 **Erreur commise** : Dans `StaticRecipeCard`, `recipe.rating_average.toFixed()` a planté au prerender car les recettes de l'API retournent parfois `undefined` (pas `null`) sur ce champ.

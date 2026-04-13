@@ -14,6 +14,26 @@ links:
 > Historique des prompts optimisés utilisés sur ce projet.
 > Ajoute tes nouveaux prompts en haut du fichier (ordre anti-chronologique).
 
+## 2026-04-12 — Fix 3 bugs prod + photo_url 75 recettes (backend-developer)
+
+**Agent** : backend-developer
+**Scope** : `apps/api/src/api/v1/recipes.py`, `apps/worker/src/agents/weekly_planner/recipe_retriever.py`, `infra/docker/init-scripts/postgres/06-add-photo-urls.sql` (créé)
+**Résultat** :
+- BUG 1 : `photo_url` ajouté dans `RecipeOut` (schéma Pydantic) + SELECT de `search_recipes`, `get_random_recipes`.
+- BUG 2 : `photo_url` + `description` ajoutés dans le SELECT de `get_recipe` ; construction `RecipeDetail` rendue explicite avec valeurs par défaut sûres.
+- BUG 3 : Fallback `_retrieve_by_quality_no_embedding` ajouté dans `recipe_retriever.py` — si aucune recette avec embedding, retourne les 5 meilleures par `quality_score` sans JOIN `recipe_embeddings`. Résout le crash 500 du planner sur recettes seed sans embeddings.
+- ACTION 4 : 75 UPDATE SQL avec 25+ URLs Unsplash variées dans `06-add-photo-urls.sql` (prêt pour Supabase SQL Editor).
+
+---
+
+## 2026-04-12 — Fix crash page /recipes/[id] champs null API (nextjs-developer)
+
+**Agent** : nextjs-developer
+**Scope** : `apps/web/src/lib/api/types.ts`, `apps/web/src/app/(app)/recipes/[id]/page.tsx`, `apps/web/src/app/(app)/recipes/[id]/error.tsx` (créé), `apps/web/src/components/recipe/ingredient-list.tsx`, `apps/web/src/app/page.tsx`
+**Résultat** : Crash "Quelque chose s'est mal passé" résolu. Cause : mismatch `photo_url` vs `image_url` + champs `null` non typés. Normalisation dans `fetchRecipe`, Error Boundary créé, `pnpm typecheck` : 0 erreur.
+
+---
+
 ## 2026-04-12 — Import Spoonacular API vers PostgreSQL Supabase (backend-developer)
 
 **Agent** : backend-developer

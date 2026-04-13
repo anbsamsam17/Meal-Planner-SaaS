@@ -47,6 +47,8 @@ class RecipeOut(BaseModel):
     total_time_min: int | None = None
     difficulty: int | None = Field(default=None, ge=1, le=5)
     cuisine_type: str | None = None
+    # BUG 1 FIX (2026-04-12) : photo_url absent de la réponse API — ajout du champ
+    photo_url: str | None = None
     tags: list[str] = []
     quality_score: float | None = Field(default=None, ge=0.0, le=1.0)
 
@@ -152,7 +154,7 @@ async def get_random_recipes(
                     WITH sampled AS (
                         SELECT id, title, slug, source, servings, prep_time_min,
                                cook_time_min, total_time_min, difficulty, cuisine_type,
-                               tags, quality_score
+                               photo_url, tags, quality_score
                         FROM recipes TABLESAMPLE BERNOULLI(10)
                         WHERE quality_score >= 0.6
                         LIMIT :count
@@ -160,7 +162,7 @@ async def get_random_recipes(
                     fallback AS (
                         SELECT id, title, slug, source, servings, prep_time_min,
                                cook_time_min, total_time_min, difficulty, cuisine_type,
-                               tags, quality_score
+                               photo_url, tags, quality_score
                         FROM recipes
                         WHERE quality_score >= 0.6
                         ORDER BY RANDOM()
@@ -249,12 +251,14 @@ async def get_recipe(
         from sqlalchemy import text
 
         # Requête principale — métadonnées de la recette
+        # BUG 2 FIX (2026-04-12) : ajout de photo_url et description dans le SELECT
+        # pour éviter le crash frontend sur champs null/undefined non prévus
         result = await session.execute(
             text(
                 """
                 SELECT id, title, slug, source, servings, prep_time_min,
                        cook_time_min, total_time_min, difficulty, cuisine_type,
-                       tags, quality_score, instructions
+                       photo_url, description, tags, quality_score, instructions
                 FROM recipes
                 WHERE id = :recipe_id
                 LIMIT 1
@@ -304,8 +308,24 @@ async def get_recipe(
         ingredients_count=len(ingredients),
     )
 
+    # BUG 2 FIX (2026-04-12) : construction explicite avec valeurs par défaut sûres
+    # pour éviter le crash frontend sur champs null/undefined.
+    # description et photo_url sont maintenant inclus dans le SELECT et exposés ici.
     return RecipeDetail(
-        **{k: v for k, v in recipe_data.items() if k != "instructions"},
+        id=recipe_data["id"],
+        title=recipe_data["title"],
+        slug=recipe_data["slug"],
+        source=recipe_data.get("source"),
+        servings=recipe_data.get("servings"),
+        prep_time_min=recipe_data.get("prep_time_min"),
+        cook_time_min=recipe_data.get("cook_time_min"),
+        total_time_min=recipe_data.get("total_time_min"),
+        difficulty=recipe_data.get("difficulty"),
+        cuisine_type=recipe_data.get("cuisine_type"),
+        photo_url=recipe_data.get("photo_url"),
+        description=recipe_data.get("description"),
+        tags=recipe_data.get("tags") or [],
+        quality_score=recipe_data.get("quality_score"),
         instructions=recipe_data.get("instructions") or [],
         ingredients=ingredients,
     )
@@ -444,12 +464,13 @@ async def search_recipes(
             # Remplacement du double COUNT+SELECT (2 round-trips) par un seul SELECT
             # avec COUNT(*) OVER() comme window function → 1 seul round-trip DB.
             # Gain estimé : -15ms p95 (élimination d'un round-trip réseau Supabase).
+            # BUG 1 FIX (2026-04-12) : ajout de photo_url dans le SELECT
             rows_result = await session.execute(
                 text(
                     f"""
                     SELECT id, title, slug, source, servings, prep_time_min,
                            cook_time_min, total_time_min, difficulty, cuisine_type,
-                           tags, quality_score,
+                           photo_url, tags, quality_score,
                            COUNT(*) OVER() AS total_count
                     FROM recipes
                     WHERE {where_clause}
