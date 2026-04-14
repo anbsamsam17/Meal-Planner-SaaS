@@ -1,9 +1,11 @@
 // apps/web/src/app/(auth)/login/page.tsx
 // Page login — email + password (primaire) + magic link (secondaire)
 // BUG 1 FIX (2026-04-12) : signInWithPassword + "Mot de passe oublié ?" + réinitialisation
+// BUG 2 FIX (2026-04-14) : useSearchParams() doit être dans un composant enveloppé par <Suspense>
 // Conserve le fix open redirect (getSafeRedirectUrl) de Phase 1 mature
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -40,7 +42,43 @@ function getSafeRedirectUrl(redirect: string | null): string {
 
 type Mode = "password" | "magic-link" | "forgot-password";
 
-export default function LoginPage() {
+// Squelette adapté au design auth — affiché pendant le chargement de useSearchParams
+function LoginSkeleton() {
+  return (
+    <div role="status" aria-busy="true" aria-label="Chargement du formulaire de connexion...">
+      {/* Titre */}
+      <div className="skeleton-shimmer mb-2 h-8 w-40 rounded-lg" aria-hidden="true" />
+      {/* Sous-titre */}
+      <div className="skeleton-shimmer mb-6 h-4 w-64 rounded-lg" aria-hidden="true" />
+      {/* Label champ email */}
+      <div className="skeleton-shimmer mb-1.5 h-4 w-24 rounded-lg" aria-hidden="true" />
+      {/* Champ email */}
+      <div className="skeleton-shimmer mb-4 h-11 w-full rounded-xl" aria-hidden="true" />
+      {/* Label + lien mot de passe */}
+      <div className="mb-1.5 flex items-center justify-between">
+        <div className="skeleton-shimmer h-4 w-24 rounded-lg" aria-hidden="true" />
+        <div className="skeleton-shimmer h-3 w-28 rounded-lg" aria-hidden="true" />
+      </div>
+      {/* Champ mot de passe */}
+      <div className="skeleton-shimmer mb-4 h-11 w-full rounded-xl" aria-hidden="true" />
+      {/* Bouton */}
+      <div className="skeleton-shimmer h-12 w-full rounded-xl" aria-hidden="true" />
+      {/* Lien secondaire */}
+      <div className="mt-4 flex justify-center">
+        <div className="skeleton-shimmer h-4 w-44 rounded-lg" aria-hidden="true" />
+      </div>
+      {/* Lien inscription */}
+      <div className="mt-6 flex justify-center gap-2">
+        <div className="skeleton-shimmer h-4 w-32 rounded-lg" aria-hidden="true" />
+        <div className="skeleton-shimmer h-4 w-24 rounded-lg" aria-hidden="true" />
+      </div>
+      <span className="sr-only">Chargement du formulaire de connexion, veuillez patienter.</span>
+    </div>
+  );
+}
+
+// Composant interne — contient useSearchParams() et toute la logique
+function LoginForm() {
   const searchParams = useSearchParams();
   const rawRedirect = searchParams.get("redirect");
 
@@ -560,5 +598,16 @@ export default function LoginPage() {
         </Link>
       </div>
     </>
+  );
+}
+
+// Export par défaut — wrapping Suspense obligatoire pour useSearchParams()
+// Sans ce Suspense, Next.js 14 App Router bloque la page entière en mode streaming
+// et affiche le loading.tsx root (skeleton recettes) indéfiniment.
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginSkeleton />}>
+      <LoginForm />
+    </Suspense>
   );
 }

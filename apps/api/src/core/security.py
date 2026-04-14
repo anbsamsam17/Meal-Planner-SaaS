@@ -9,7 +9,8 @@ Conventions multi-tenancy :
 - Le household_id est le tenant ID pour l'isolation RLS
 - Les agents IA utilisent le service_role_key (bypass RLS)
 
-FIX #9 (review Phase 1 2026-04-12) :
+Sécurité (FIX critique 2026-04-14) :
+- Vérification de signature OBLIGATOIRE — aucun fallback sans signature
 - verify_aud=True avec audience="authenticated" (standard Supabase GoTrue)
 - SUPABASE_JWT_SECRET utilisé si défini (pour projets avec JWT secret custom)
 - leeway=30s pour tolérance horloge entre serveurs
@@ -17,6 +18,7 @@ FIX #9 (review Phase 1 2026-04-12) :
   souhaitez utiliser un secret JWT distinct de SUPABASE_ANON_KEY.
 """
 
+import base64
 import os
 from typing import Any
 
@@ -77,69 +79,82 @@ def verify_jwt(token: str, supabase_anon_key: str) -> TokenPayload:
     """
     Vérifie la signature d'un JWT Supabase et retourne le payload décodé.
 
-    FIX #9 (review Phase 1 2026-04-12) :
-    - Utilise SUPABASE_JWT_SECRET si défini (projets avec JWT secret distinct)
-    - Sinon utilise SUPABASE_ANON_KEY (comportement par défaut Supabase)
+    Stratégie de vérification (2 méthodes, toutes avec signature vérifiée) :
+    1. Secret brut tel que fourni (SUPABASE_JWT_SECRET ou SUPABASE_ANON_KEY)
+    2. Secret décodé en base64 (certains projets Supabase encodent le secret)
+
+    Sécurité :
     - verify_aud=True avec audience="authenticated" (standard GoTrue)
-    - leeway=30s pour tolérance horloge
-    - Supabase utilise HS256 par défaut. Si RS256 est activé sur votre projet
-      Supabase Pro, devops-engineer doit ajouter la logique JWKS endpoint.
+    - Vérification de signature obligatoire sur toutes les méthodes (pas de fallback)
+    - leeway=30s pour tolérance horloge entre serveurs
+    - Algorithme HS256 uniquement (défaut Supabase). Si RS256 est activé sur
+      un projet Supabase Pro, ajouter la logique JWKS endpoint.
 
     Args:
         token: Le JWT Bearer extrait du header Authorization.
-        supabase_anon_key: La clé anon Supabase (sert de secret de vérification).
+        supabase_anon_key: La clé anon Supabase (sert de secret si SUPABASE_JWT_SECRET
+            n'est pas défini dans l'environnement).
 
     Returns:
         TokenPayload avec user_id, household_id, role.
 
     Raises:
-        HTTPException 401 si le token est invalide, expiré ou malformé.
+        HTTPException 401 si le token est invalide, expiré, malformé ou si la
+        signature ne correspond à aucun secret configuré.
     """
     # FIX #9 (review Phase 1 2026-04-12) : SUPABASE_JWT_SECRET prioritaire sur SUPABASE_ANON_KEY
     # Permet de configurer un secret JWT distinct si le projet Supabase le nécessite.
     jwt_secret = os.getenv("SUPABASE_JWT_SECRET") or supabase_anon_key
 
-    # Essayer plusieurs méthodes de décodage (Supabase JWT peut varier)
-    errors = []
+    # Options de décodage communes : vérification signature + audience + leeway
+    decode_options = {"verify_aud": True, "leeway": JWT_LEEWAY_SECONDS}
 
-    # Méthode 1 : secret brut
+    # Deux méthodes de décodage : Supabase peut fournir le secret JWT
+    # soit en clair, soit encodé en base64 selon la configuration du projet.
+    errors: list[str] = []
+
+    # Méthode 1 : secret brut (format le plus courant)
     try:
-        payload = jwt.decode(token, jwt_secret, algorithms=["HS256"], options={"verify_aud": False, "leeway": JWT_LEEWAY_SECONDS})
+        payload = jwt.decode(
+            token,
+            jwt_secret,
+            algorithms=["HS256"],
+            audience=SUPABASE_JWT_AUDIENCE,
+            options=decode_options,
+        )
         logger.info("jwt_decoded_ok", sub=payload.get("sub"), method="raw_secret")
         return TokenPayload(payload)
     except JWTError as exc:
         errors.append(f"raw: {type(exc).__name__}: {exc}")
 
-    # Méthode 2 : secret base64-décodé
-    import base64
+    # Méthode 2 : secret base64-décodé (certains projets Supabase encodent le secret)
     try:
         decoded_secret = base64.b64decode(jwt_secret)
-        payload = jwt.decode(token, decoded_secret, algorithms=["HS256"], options={"verify_aud": False, "leeway": JWT_LEEWAY_SECONDS})
+        payload = jwt.decode(
+            token,
+            decoded_secret,
+            algorithms=["HS256"],
+            audience=SUPABASE_JWT_AUDIENCE,
+            options=decode_options,
+        )
         logger.info("jwt_decoded_ok", sub=payload.get("sub"), method="base64_secret")
         return TokenPayload(payload)
     except Exception as exc:
         errors.append(f"b64: {type(exc).__name__}: {exc}")
 
-    # Méthode 3 : anon key comme secret
-    try:
-        payload = jwt.decode(token, supabase_anon_key, algorithms=["HS256"], options={"verify_aud": False, "leeway": JWT_LEEWAY_SECONDS})
-        logger.info("jwt_decoded_ok", sub=payload.get("sub"), method="anon_key")
-        return TokenPayload(payload)
-    except JWTError as exc:
-        errors.append(f"anon: {type(exc).__name__}: {exc}")
-
-    # Méthode 4 : fallback sans vérification signature (TEMPORAIRE)
-    # TODO: fixer le SUPABASE_JWT_SECRET sur Railway puis supprimer cette méthode
-    try:
-        payload = jwt.decode(token, "dummy", algorithms=["HS256"], options={"verify_signature": False, "verify_aud": False})
-        sub = payload.get("sub")
-        if sub:
-            logger.warning("jwt_decoded_WITHOUT_verification", sub=sub)
-            return TokenPayload(payload)
-    except Exception as exc:
-        errors.append(f"nosig: {type(exc).__name__}: {exc}")
-
-    logger.error("jwt_all_methods_failed", errors=errors)
+    # Toutes les méthodes ont échoué — log détaillé pour faciliter le diagnostic
+    has_custom_secret = bool(os.getenv("SUPABASE_JWT_SECRET"))
+    logger.error(
+        "jwt_all_methods_failed",
+        errors=errors,
+        has_custom_jwt_secret=has_custom_secret,
+        hint=(
+            "Vérifiez que SUPABASE_JWT_SECRET est correctement configuré dans "
+            "les variables d'environnement (Railway/Vercel). "
+            "Cette valeur se trouve dans le dashboard Supabase > Settings > API > JWT Secret. "
+            "Si SUPABASE_JWT_SECRET n'est pas défini, SUPABASE_ANON_KEY est utilisé par défaut."
+        ),
+    )
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Token JWT invalide.",
