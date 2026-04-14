@@ -19,11 +19,12 @@ Sécurité (FIX critique 2026-04-14) :
 """
 
 import base64
+import contextlib
 import os
 from typing import Any
 
 from fastapi import HTTPException, Request, status
-from jose import JWTError, jwt
+from jose import jwt
 from loguru import logger
 
 # FIX #9 (review Phase 1 2026-04-12) : audience Supabase standard
@@ -102,59 +103,47 @@ def verify_jwt(token: str, supabase_anon_key: str) -> TokenPayload:
         HTTPException 401 si le token est invalide, expiré, malformé ou si la
         signature ne correspond à aucun secret configuré.
     """
-    # FIX #9 (review Phase 1 2026-04-12) : SUPABASE_JWT_SECRET prioritaire sur SUPABASE_ANON_KEY
-    # Permet de configurer un secret JWT distinct si le projet Supabase le nécessite.
-    jwt_secret = os.getenv("SUPABASE_JWT_SECRET") or supabase_anon_key
-
-    # Options de décodage communes : vérification signature + leeway
-    # verify_aud désactivé : Supabase GoTrue peut émettre "aud" comme string,
-    # array, ou l'omettre selon la version — python-jose rejette les formats inattendus.
-    # La signature HS256 reste la protection principale (non négociable).
+    # Options de décodage : vérification signature + leeway, audience désactivé
+    # (Supabase GoTrue peut émettre "aud" dans un format incompatible avec python-jose)
     decode_options = {"verify_aud": False, "leeway": JWT_LEEWAY_SECONDS}
 
-    # Deux méthodes de décodage : Supabase peut fournir le secret JWT
-    # soit en clair, soit encodé en base64 selon la configuration du projet.
+    # Secrets à essayer dans l'ordre de priorité :
+    # 1. SUPABASE_JWT_SECRET (legacy JWT secret du dashboard Supabase)
+    # 2. SUPABASE_ANON_KEY (certains projets signent avec la anon key)
+    # 3. Base64-décodé du JWT_SECRET (format alternatif Supabase)
+    jwt_secret = os.getenv("SUPABASE_JWT_SECRET")
+    secrets_to_try: list[tuple[str, str]] = []
+    if jwt_secret:
+        secrets_to_try.append((jwt_secret, "jwt_secret"))
+    if supabase_anon_key and supabase_anon_key != jwt_secret:
+        secrets_to_try.append((supabase_anon_key, "anon_key"))
+    if jwt_secret:
+        with contextlib.suppress(Exception):
+            secrets_to_try.append((base64.b64decode(jwt_secret).decode(), "jwt_secret_b64"))
+    if not jwt_secret:
+        secrets_to_try.append((supabase_anon_key, "anon_key"))
+
     errors: list[str] = []
 
-    # Méthode 1 : secret brut (format le plus courant)
-    try:
-        payload = jwt.decode(
-            token,
-            jwt_secret,
-            algorithms=["HS256"],
-            options=decode_options,
-        )
-        logger.info("jwt_decoded_ok", sub=payload.get("sub"), method="raw_secret")
-        return TokenPayload(payload)
-    except JWTError as exc:
-        errors.append(f"raw: {type(exc).__name__}: {exc}")
+    for secret, method_name in secrets_to_try:
+        try:
+            payload = jwt.decode(
+                token,
+                secret,
+                algorithms=["HS256"],
+                options=decode_options,
+            )
+            logger.info("jwt_decoded_ok", sub=payload.get("sub"), method=method_name)
+            return TokenPayload(payload)
+        except Exception as exc:
+            error_msg = f"{method_name}: {type(exc).__name__}: {exc}"
+            errors.append(error_msg)
+            logger.warning(f"jwt_method_failed | {error_msg}")
 
-    # Méthode 2 : secret base64-décodé (certains projets Supabase encodent le secret)
-    try:
-        decoded_secret = base64.b64decode(jwt_secret)
-        payload = jwt.decode(
-            token,
-            decoded_secret,
-            algorithms=["HS256"],
-            options=decode_options,
-        )
-        logger.info("jwt_decoded_ok", sub=payload.get("sub"), method="base64_secret")
-        return TokenPayload(payload)
-    except Exception as exc:
-        errors.append(f"b64: {type(exc).__name__}: {exc}")
-
-    # Toutes les méthodes ont échoué — log détaillé pour faciliter le diagnostic
-    has_custom_secret = bool(os.getenv("SUPABASE_JWT_SECRET"))
+    # Toutes les méthodes ont échoué
     logger.error(
-        "jwt_all_methods_failed",
-        errors=errors,
-        has_custom_jwt_secret=has_custom_secret,
-        hint=(
-            "Vérifiez que SUPABASE_JWT_SECRET est correctement configuré dans "
-            "les variables d'environnement (Railway/Vercel). "
-            "Cette valeur se trouve dans le dashboard Supabase > Settings > API > JWT Secret. "
-            "Si SUPABASE_JWT_SECRET n'est pas défini, SUPABASE_ANON_KEY est utilisé par défaut."
-        ),
+        f"jwt_all_methods_failed | tried={len(secrets_to_try)} | "
+        f"has_jwt_secret={bool(jwt_secret)} | errors={errors}"
     )
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
