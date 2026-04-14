@@ -432,6 +432,124 @@ async def get_shopping_list(
     return [ShoppingListItemRead.model_validate(item) for item in (items_raw or [])]
 
 
+# ---- PATCH /plans/me/{plan_id}/shopping-list/{ingredient_id} ----
+# REC-04 : Persistance des items cochés — Phase 1 → Phase 2 (sync backend)
+# Déclaré AVANT /{plan_id} pour éviter le conflit de routing FastAPI.
+
+@router.patch(
+    "/me/{plan_id}/shopping-list/{ingredient_id}",
+    summary="Cocher / décocher un article de la liste de courses",
+    description=(
+        "Met à jour le champ `checked` d'un article dans la liste de courses d'un plan. "
+        f"Rate limit : {LIMIT_USER_WRITE}."
+    ),
+    response_model=ShoppingListItemRead,
+    responses={
+        status.HTTP_404_NOT_FOUND: {"description": "Plan, liste ou article introuvable."},
+    },
+)
+@limiter.limit(LIMIT_USER_WRITE, key_func=get_user_key)
+async def toggle_shopping_item(
+    request: Request,
+    plan_id: UUID,
+    ingredient_id: str,
+    body: dict,
+    session: AsyncSession = Depends(get_db),
+    user: TokenPayload = Depends(get_current_user_dep),
+) -> Any:
+    """
+    Coche ou décoche un article dans la liste de courses.
+
+    L'article est identifié par son `ingredient_id` (clé naturelle dans le JSON).
+    Le champ `checked` est mis à jour dans le JSONB stocké dans `shopping_lists.items`.
+
+    Args:
+        request: Requête FastAPI (requis par slowapi).
+        plan_id: UUID du plan hebdomadaire.
+        ingredient_id: ID de l'ingrédient à cocher/décocher.
+        body: `{ "checked": bool }`.
+        session: Session DB injectée.
+        user: Payload JWT.
+
+    Returns:
+        ShoppingListItemRead avec le nouvel état `checked`.
+    """
+    # Validation du body
+    checked = body.get("checked")
+    if not isinstance(checked, bool):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Le champ `checked` (boolean) est requis.",
+        )
+
+    household_id = await _get_user_household_id(session, user.user_id)
+
+    # Vérifier que le plan appartient au foyer de l'utilisateur
+    plan_result = await session.execute(
+        text("SELECT household_id FROM weekly_plans WHERE id = :plan_id"),
+        {"plan_id": str(plan_id)},
+    )
+    plan_row = plan_result.fetchone()
+
+    if plan_row is None or str(plan_row[0]) != str(household_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Plan {plan_id} introuvable dans votre foyer.",
+        )
+
+    # Charger la liste de courses actuelle
+    sl_result = await session.execute(
+        text("SELECT items FROM shopping_lists WHERE plan_id = :plan_id"),
+        {"plan_id": str(plan_id)},
+    )
+    sl_row = sl_result.fetchone()
+
+    if sl_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Liste de courses non encore générée pour ce plan.",
+        )
+
+    items_raw = sl_row[0]
+    if isinstance(items_raw, str):
+        items_raw = json.loads(items_raw)
+
+    items: list[dict] = items_raw or []
+
+    # Trouver et mettre à jour l'article correspondant à ingredient_id
+    updated_item: dict | None = None
+    for item in items:
+        if str(item.get("ingredient_id", "")) == ingredient_id:
+            item["checked"] = checked
+            updated_item = item
+            break
+
+    if updated_item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Article {ingredient_id} introuvable dans la liste de courses.",
+        )
+
+    # Persister le JSON mis à jour
+    await session.execute(
+        text(
+            "UPDATE shopping_lists SET items = CAST(:items AS jsonb) WHERE plan_id = :plan_id"
+        ),
+        {"items": json.dumps(items), "plan_id": str(plan_id)},
+    )
+    await session.commit()
+
+    logger.info(
+        "shopping_item_toggled",
+        plan_id=str(plan_id),
+        ingredient_id=ingredient_id,
+        checked=checked,
+        user_id=user.user_id,
+    )
+
+    return ShoppingListItemRead.model_validate(updated_item)
+
+
 # ---- GET /plans/me/history ----
 # Stub Phase 2 : retourne l'historique des plans du foyer.
 # Déclaré AVANT /{plan_id} pour éviter que "me" soit capturé comme UUID.

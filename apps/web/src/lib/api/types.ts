@@ -162,10 +162,8 @@ export interface RecipeFeedback {
 // --- Types paginés ---
 
 export interface PaginatedResponse<T> {
-  // Champ normalisé (frontend)
+  // Champ normalisé — la couche endpoints.ts mappe toujours results → data
   data: T[];
-  // Champ API original (backend retourne "results")
-  results?: T[];
   total: number;
   page: number;
   per_page: number;

@@ -476,14 +476,15 @@ export async function searchRecipesAdvanced(
   const rawRecipes: Record<string, unknown>[] = raw.results ?? raw.data ?? [];
   const normalizedRecipes = rawRecipes.map(normalizeRecipe);
 
+  // L'API retourne { results: [...], total, page, per_page } (RecipeSearchResult)
+  // On normalise vers PaginatedResponse<Recipe> avec data comme champ unique
   return {
     data: normalizedRecipes,
-    results: normalizedRecipes,
     total: raw.total ?? 0,
     page: raw.page ?? 1,
     per_page: raw.per_page ?? filters.per_page ?? 24,
     has_next: raw.has_next ?? false,
-  } as PaginatedResponse<Recipe> & { results: Recipe[] };
+  } satisfies PaginatedResponse<Recipe>;
 }
 
 // --- Endpoints Feedbacks ---

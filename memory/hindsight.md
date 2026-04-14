@@ -18,6 +18,20 @@ links:
 
 ---
 
+## 2026-04-14 — REC-04/REC-05 : mismatch API→frontend dans hook et shopping list (fullstack-developer)
+
+**REC-04 — Shopping list items non persistés** :
+Le hook `useToggleItem` était en "Phase 1" localStorage uniquement. L'API backend stocke `checked` dans le JSON de `shopping_lists.items` (champ dans le tableau JSONB). Il manquait un endpoint `PATCH /plans/me/{plan_id}/shopping-list/{ingredient_id}` pour persister l'état coché. La clé naturelle de chaque item dans le JSON est `ingredient_id` (pas un UUID séparé).
+**Règle à retenir** : Avant d'implémenter un toggle en localStorage, vérifier que la table DB a bien un identifiant stable par item. Si les items sont stockés comme JSON array dans une colonne JSONB, l'upsert se fait avec UPDATE SET items = CAST(:new_json AS jsonb) sur toute la liste — pas via SQL UPDATE ciblé sur un item.
+**Comment l'éviter** : Un endpoint PATCH qui met à jour un champ dans un JSONB array doit chercher l'item dans le tableau Python/dict, le modifier, puis sérialiser et enregistrer tout le tableau. Ne pas tenter de JSONB path operators (complexes) si le volume est petit.
+
+**REC-05 — Settings préférences non pré-remplies** :
+Le hook `useHousehold` faisait `apiClient.get<HouseholdResponse>("/api/v1/households/me")` en supposant que l'API retournait `{household, members, preferences}`. Mais le backend retourne `HouseholdRead` = `{id, name, plan, members[{...preferences}]}`. Les préférences sont imbriquées dans chaque membre (`members[].preferences`), pas au niveau racine. Le `useEffect` de `settings-content.tsx` accédait à `household.preferences` qui était toujours `undefined`.
+**Règle à retenir** : Toujours lire le schéma Pydantic de retour (`response_model=`) du backend avant de typer la réponse dans le hook frontend. Ajouter une fonction `normalizeXxx()` dans le hook pour mapper le format API brut vers le type normalisé attendu par les composants.
+**Comment l'éviter** : Dans le hook, typer le retour brut de l'API avec `XxxRaw` et le résultat normalisé avec `XxxResponse`. Ne jamais caster `apiClient.get<FrontendType>()` directement sans normalisation quand les structures diffèrent.
+
+---
+
 ## 2026-04-15 — Supabase utilise ES256 (ECDSA), pas HS256 (HMAC)
 **Erreur commise** : On a supposé que Supabase signait les JWT avec HS256 (HMAC symétrique) et tenté de vérifier avec SUPABASE_JWT_SECRET et SUPABASE_ANON_KEY. 4 déploiements ont échoué avec des 401 sur toutes les requêtes.
 **Règle à retenir** : Les projets Supabase récents utilisent ES256 (ECDSA P-256) pour signer les JWT. La vérification se fait avec la clé publique JWKS à `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`, pas avec un secret symétrique. Toujours lire `jwt.get_unverified_header(token)` pour détecter l'algorithme avant de vérifier.

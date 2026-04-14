@@ -22,7 +22,6 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
-import redis.asyncio as aioredis
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -118,14 +117,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         app.state.db_session_factory = session_factory
         logger.info("database_pool_connected_fallback", database_url=settings.DATABASE_URL[:50])
 
-    # ---- Redis ----
-    redis_client = aioredis.from_url(
-        settings.REDIS_URL,
-        encoding="utf-8",
-        decode_responses=True,
-    )
+    # ---- Redis — pool de connexions partagé (PERF-01) ----
+    # Remplace aioredis.from_url() sans pool (reconnexion TCP à chaque appel,
+    # latence 800ms+) par un ConnectionPool réutilisable (< 10ms en régime établi).
+    # Voir apps/api/src/core/cache.py pour la configuration du pool.
+    from src.core.cache import create_redis_pool
+
+    redis_client = create_redis_pool(settings.REDIS_URL)
     app.state.redis = redis_client
-    logger.info("redis_connected", redis_url=settings.REDIS_URL)
+    logger.info("redis_pool_connected", redis_url=settings.REDIS_URL, max_connections=20)
 
     # ---- Rate limiter (slowapi) ----
     # FIX Phase 1 mature (review 2026-04-12) : le singleton module-level est réassigné

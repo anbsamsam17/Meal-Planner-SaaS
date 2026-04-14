@@ -1,56 +1,22 @@
 // apps/web/src/hooks/use-shopping-list.ts
 // Hooks TanStack Query pour la liste de courses
-// Optimistic update sur toggle + persistance localStorage
-// Phase 2 : sync via Supabase Realtime pour partage famille en temps reel
+// Optimistic update sur toggle + persistance backend via PATCH
+// REC-04 : items cochés persistés côté serveur (shopping_lists.items[].checked)
 "use client";
 
-import { useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getShoppingList } from "@/lib/api/endpoints";
+import { apiClient } from "@/lib/api/client";
 import type { ShoppingListItem } from "@/lib/api/types";
 
 export const SHOPPING_QUERY_KEYS = {
   byPlan: (planId: string) => ["shopping-list", planId] as const,
 };
 
-const STORAGE_KEY_PREFIX = "presto-shopping-checked";
-
-function getStorageKey(planId: string): string {
-  return `${STORAGE_KEY_PREFIX}-${planId}`;
-}
-
-/** Charge les IDs coches depuis localStorage pour un plan donne */
-function loadCheckedItems(planId: string): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try {
-    const saved = localStorage.getItem(getStorageKey(planId));
-    if (saved) {
-      const parsed: unknown = JSON.parse(saved);
-      if (Array.isArray(parsed)) {
-        return new Set(parsed.filter((v): v is string => typeof v === "string"));
-      }
-    }
-  } catch {
-    // localStorage corrompu -- repartir de zero
-  }
-  return new Set();
-}
-
-/** Sauvegarde les IDs coches dans localStorage */
-function saveCheckedItems(planId: string, checkedIds: string[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(getStorageKey(planId), JSON.stringify(checkedIds));
-  } catch {
-    // Quota localStorage depasse -- pas critique
-  }
-}
-
 // Hook -- Liste de courses pour un plan donne
-// Hydrate les items avec l'etat coche depuis localStorage
+// L'etat checked est persiste cote serveur — pas de localStorage
+// REC-04 : le backend retourne les items avec leur etat checked reel
 export function useShoppingList(planId: string | null) {
-  const queryClient = useQueryClient();
-
   const query = useQuery<ShoppingListItem[], Error>({
     queryKey: SHOPPING_QUERY_KEYS.byPlan(planId ?? ""),
     queryFn: () => {
@@ -61,47 +27,25 @@ export function useShoppingList(planId: string | null) {
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 
-  // Apres le fetch initial, hydrater is_checked depuis localStorage
-  const hydrateFromStorage = useCallback(() => {
-    if (!planId || !query.data) return;
-    const checkedSet = loadCheckedItems(planId);
-    if (checkedSet.size === 0) return;
-
-    const needsUpdate = query.data.some(
-      (item) => checkedSet.has(item.id) !== item.is_checked,
-    );
-    if (!needsUpdate) return;
-
-    queryClient.setQueryData<ShoppingListItem[]>(
-      SHOPPING_QUERY_KEYS.byPlan(planId),
-      (old) => {
-        if (!old) return old;
-        return old.map((item) =>
-          checkedSet.has(item.id) ? { ...item, is_checked: true } : item,
-        );
-      },
-    );
-  }, [planId, query.data, queryClient]);
-
-  useEffect(() => {
-    hydrateFromStorage();
-  }, [hydrateFromStorage]);
-
   return query;
 }
 
-// Mutation -- Toggle item coche (optimistic update + persistance localStorage)
-// Phase 2 : PATCH /api/v1/plans/{planId}/shopping-list/{itemId}
+// Mutation -- Toggle item coche (optimistic update + persistance backend)
+// REC-04 : PATCH /api/v1/plans/me/{planId}/shopping-list/{ingredientId}
+// L'ingredient_id est utilise comme cle naturelle cote backend (champ dans le JSON items[])
 export function useToggleItem(planId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ itemId, isChecked }: { itemId: string; isChecked: boolean }) => {
-      // Phase 1 -- persistance localStorage uniquement (pas de endpoint API pour le check)
-      // Phase 2 : PATCH /api/v1/plans/{planId}/shopping-list/{itemId}
+      // itemId = ingredient_id (cle naturelle dans shopping_lists.items[].ingredient_id)
+      await apiClient.patch(
+        `/api/v1/plans/me/${planId}/shopping-list/${itemId}`,
+        { checked: isChecked },
+      );
       return { itemId, isChecked };
     },
-    // Optimistic update immediat -- pas d'attente serveur
+    // Optimistic update immediat -- la reponse serveur confirme l'etat final
     onMutate: async ({ itemId, isChecked }) => {
       const queryKey = SHOPPING_QUERY_KEYS.byPlan(planId);
       await queryClient.cancelQueries({ queryKey });
@@ -117,20 +61,8 @@ export function useToggleItem(planId: string) {
 
       return { previousItems };
     },
-    onSuccess: () => {
-      // Persister l'etat coche dans localStorage
-      const items = queryClient.getQueryData<ShoppingListItem[]>(
-        SHOPPING_QUERY_KEYS.byPlan(planId),
-      );
-      if (items) {
-        const checkedIds = items
-          .filter((item) => item.is_checked)
-          .map((item) => item.id);
-        saveCheckedItems(planId, checkedIds);
-      }
-    },
     onError: (_err, _variables, context) => {
-      // Rollback en cas d'erreur
+      // Rollback en cas d'erreur reseau ou serveur
       if (context?.previousItems) {
         queryClient.setQueryData(
           SHOPPING_QUERY_KEYS.byPlan(planId),

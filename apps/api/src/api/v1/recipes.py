@@ -21,6 +21,14 @@ from pydantic import BaseModel, Field
 # FIX #2 (review Phase 1 2026-04-12) : LIMIT_USER_READ documenté — le rate limit 300/min
 # est appliqué via SlowAPIMiddleware (default_limits dans create_limiter, main.py).
 # La constante est conservée ici pour la documentation OpenAPI et les futures surcharges par endpoint.
+from src.core.cache import (
+    CACHE_TTL_RECIPE_DETAIL,
+    CACHE_TTL_RECIPE_LIST,
+    build_recipe_detail_key,
+    build_recipe_list_key,
+    cache_response,
+    pydantic_to_cache,
+)
 from src.core.rate_limit import (  # noqa: F401 — documenté intentionnellement
     LIMIT_USER_READ,
     get_user_key,
@@ -275,6 +283,7 @@ async def search_recipes(
         RecipeSearchResult avec pagination.
     """
     db_session = getattr(request.app.state, "db_session_factory", None)
+    redis = getattr(request.app.state, "redis", None)
     offset = (page - 1) * per_page
 
     if db_session is None:
@@ -283,143 +292,159 @@ async def search_recipes(
             results=[], total=0, query=q, page=page, per_page=per_page
         )
 
-    try:
-        async with db_session() as session:
-            from sqlalchemy import text
+    # Mapping EN→FR des tags régime alimentaire (frontend → DB)
+    # IMP-05 fix (2026-04-14) : le frontend envoie des tags EN ("gluten-free", "lactose-free",
+    # "no-pork", "no-seafood", "nut-free") mais la DB stocke des tags FR ("sans-gluten",
+    # "sans-lactose", "sans-porc", "sans-fruits-de-mer", "sans-fruits-à-coque").
+    _DIET_EN_TO_FR: dict[str, str] = {
+        "gluten-free": "sans-gluten",
+        "gluten_free": "sans-gluten",
+        "lactose-free": "sans-lactose",
+        "lactose_free": "sans-lactose",
+        "no-pork": "sans-porc",
+        "no_pork": "sans-porc",
+        "no-seafood": "sans-fruits-de-mer",
+        "no_seafood": "sans-fruits-de-mer",
+        "nut-free": "sans-fruits-à-coque",
+        "nut_free": "sans-fruits-à-coque",
+        "vegetarian": "végétarien",
+        "vegetarien": "végétarien",
+    }
+    normalized_diet = [_DIET_EN_TO_FR.get(tag, tag) for tag in diet] if diet else None
 
-            # Construction dynamique de la requête avec filtres optionnels
-            # Utilise des paramètres liés pour éviter l'injection SQL
-            conditions = ["quality_score >= 0.6"]
-            params: dict[str, Any] = {"limit": per_page, "offset": offset}
+    # ---- PERF-02 : Cache Redis TTL 5min sur la liste/recherche ----
+    cache_key = build_recipe_list_key(
+        q=q,
+        page=page,
+        per_page=per_page,
+        cuisine=cuisine,
+        max_time=max_time,
+        budget=budget,
+        min_difficulty=min_difficulty,
+        max_difficulty=max_difficulty,
+        diet=normalized_diet,
+        season=season,
+    )
 
-            if q:
-                conditions.append("title ILIKE :query")
-                params["query"] = f"%{q}%"
+    async def _fetch_from_db() -> dict[str, Any]:
+        """Query PostgreSQL — appelée uniquement en cas de cache miss."""
+        try:
+            async with db_session() as session:
+                from sqlalchemy import text
 
-            if cuisine:
-                conditions.append("cuisine_type = :cuisine")
-                params["cuisine"] = cuisine
+                # Construction dynamique de la requête avec filtres optionnels
+                # Utilise des paramètres liés pour éviter l'injection SQL
+                conditions = ["quality_score >= 0.6"]
+                params: dict[str, Any] = {"limit": per_page, "offset": offset}
 
-            if max_time is not None:
-                conditions.append("total_time_min <= :max_time")
-                params["max_time"] = max_time
+                if q:
+                    conditions.append("title ILIKE :query")
+                    params["query"] = f"%{q}%"
 
-            # ---- Filtres Phase 2 ----
+                if cuisine:
+                    conditions.append("cuisine_type = :cuisine")
+                    params["cuisine"] = cuisine
 
-            # Filtre budget (tag sur la recette : 'économique', 'moyen', 'premium')
-            if budget is not None:
-                conditions.append(":budget = ANY(tags)")
-                params["budget"] = budget
+                if max_time is not None:
+                    conditions.append("total_time_min <= :max_time")
+                    params["max_time"] = max_time
 
-            # Filtre difficulté (range min/max sur colonne difficulty 1-5)
-            if min_difficulty is not None:
-                conditions.append("difficulty >= :min_difficulty")
-                params["min_difficulty"] = min_difficulty
+                # ---- Filtres Phase 2 ----
 
-            if max_difficulty is not None:
-                conditions.append("difficulty <= :max_difficulty")
-                params["max_difficulty"] = max_difficulty
+                # Filtre budget (tag sur la recette : 'économique', 'moyen', 'premium')
+                if budget is not None:
+                    conditions.append(":budget = ANY(tags)")
+                    params["budget"] = budget
 
-            # Filtre régime alimentaire (multi-select — AND logique entre les régimes)
-            # BUG P0 FIX (2026-04-14) : diet est maintenant list[str].
-            # tags @> :diet_arr = "tags contient TOUS les éléments de diet_arr" (opérateur PostgreSQL).
-            # Nécessite le cast ::text[] car SQLAlchemy passe la liste Python comme paramètre lié.
-            #
-            # IMP-05 fix (2026-04-14) : le frontend envoie des tags EN ("gluten-free", "lactose-free",
-            # "no-pork", "no-seafood", "nut-free") mais la DB stocke des tags FR ("sans-gluten",
-            # "sans-lactose", "sans-porc", "sans-fruits-de-mer", "sans-fruits-à-coque").
-            # Mapping minimal EN→FR appliqué ici côté API pour ne pas casser l'interface frontend.
-            _DIET_EN_TO_FR: dict[str, str] = {
-                "gluten-free": "sans-gluten",
-                "gluten_free": "sans-gluten",
-                "lactose-free": "sans-lactose",
-                "lactose_free": "sans-lactose",
-                "no-pork": "sans-porc",
-                "no_pork": "sans-porc",
-                "no-seafood": "sans-fruits-de-mer",
-                "no_seafood": "sans-fruits-de-mer",
-                "nut-free": "sans-fruits-à-coque",
-                "nut_free": "sans-fruits-à-coque",
-                "vegetarian": "végétarien",
-                "vegetarien": "végétarien",
-            }
-            if diet:
-                normalized_diet = [_DIET_EN_TO_FR.get(tag, tag) for tag in diet]
-                conditions.append("tags @> :diet_arr::text[]")
-                params["diet_arr"] = normalized_diet
+                # Filtre difficulté (range min/max sur colonne difficulty 1-5)
+                if min_difficulty is not None:
+                    conditions.append("difficulty >= :min_difficulty")
+                    params["min_difficulty"] = min_difficulty
 
-            # Filtre saison (tag dans le tableau tags)
-            if season is not None:
-                conditions.append(":season = ANY(tags)")
-                params["season"] = season
+                if max_difficulty is not None:
+                    conditions.append("difficulty <= :max_difficulty")
+                    params["max_difficulty"] = max_difficulty
 
-            where_clause = " AND ".join(conditions)
+                # Filtre régime alimentaire (multi-select — AND logique entre les régimes)
+                # BUG P0 FIX (2026-04-14) : diet est maintenant list[str].
+                # tags @> :diet_arr = "tags contient TOUS les éléments de diet_arr" (opérateur PostgreSQL).
+                # Nécessite le cast ::text[] car SQLAlchemy passe la liste Python comme paramètre lié.
+                if normalized_diet:
+                    conditions.append("tags @> :diet_arr::text[]")
+                    params["diet_arr"] = normalized_diet
+
+                # Filtre saison (tag dans le tableau tags)
+                if season is not None:
+                    conditions.append(":season = ANY(tags)")
+                    params["season"] = season
+
+                where_clause = " AND ".join(conditions)
+
+                # FIX Phase 1 mature (review 2026-04-12) — BUG #8 :
+                # Remplacement du double COUNT+SELECT (2 round-trips) par un seul SELECT
+                # avec COUNT(*) OVER() comme window function → 1 seul round-trip DB.
+                # BUG 1 FIX (2026-04-12) : ajout de photo_url dans le SELECT
+                rows_result = await session.execute(
+                    text(
+                        f"""
+                        SELECT id, title, slug, source, servings, prep_time_min,
+                               cook_time_min, total_time_min, difficulty, cuisine_type,
+                               photo_url, tags, quality_score,
+                               COUNT(*) OVER() AS total_count
+                        FROM recipes
+                        WHERE {where_clause}
+                        ORDER BY quality_score DESC NULLS LAST, created_at DESC
+                        LIMIT :limit OFFSET :offset
+                        """
+                    ),
+                    params,
+                )
+                rows = rows_result.mappings().all()
+                total: int = int(rows[0]["total_count"]) if rows else 0
 
             # FIX Phase 1 mature (review 2026-04-12) — BUG #8 :
-            # Remplacement du double COUNT+SELECT (2 round-trips) par un seul SELECT
-            # avec COUNT(*) OVER() comme window function → 1 seul round-trip DB.
-            # Gain estimé : -15ms p95 (élimination d'un round-trip réseau Supabase).
-            # BUG 1 FIX (2026-04-12) : ajout de photo_url dans le SELECT
-            rows_result = await session.execute(
-                text(
-                    f"""
-                    SELECT id, title, slug, source, servings, prep_time_min,
-                           cook_time_min, total_time_min, difficulty, cuisine_type,
-                           photo_url, tags, quality_score,
-                           COUNT(*) OVER() AS total_count
-                    FROM recipes
-                    WHERE {where_clause}
-                    ORDER BY quality_score DESC NULLS LAST, created_at DESC
-                    LIMIT :limit OFFSET :offset
-                    """
-                ),
-                params,
-            )
-            rows = rows_result.mappings().all()
-            total: int = int(rows[0]["total_count"]) if rows else 0
+            # Exclure total_count de la sérialisation RecipeOut (champ window function uniquement).
+            recipes = [
+                RecipeOut.model_validate({k: v for k, v in dict(row).items() if k != "total_count"})
+                for row in rows
+            ]
 
-        # FIX Phase 1 mature (review 2026-04-12) — BUG #8 :
-        # Exclure total_count de la sérialisation RecipeOut (champ window function uniquement).
-        recipes = [
-            RecipeOut.model_validate({k: v for k, v in dict(row).items() if k != "total_count"})
-            for row in rows
-        ]
+            # FIX PROD (2026-04-12) : log INFO quand la DB retourne 0 recettes
+            if total == 0:
+                logger.info(
+                    "recipes_search_empty_result",
+                    query=q,
+                    page=page,
+                    per_page=per_page,
+                    hint="La DB est peut-être vide — vérifier que le seed a été exécuté sur Supabase prod.",
+                )
+            else:
+                logger.debug("recipes_search_result", query=q, total=total, page=page, per_page=per_page)
 
-        # FIX PROD (2026-04-12) : log INFO quand la DB retourne 0 recettes —
-        # permet de diagnostiquer rapidement un seed manquant sur Supabase prod
-        # sans avoir à faire un curl manuel sur la DB.
-        if total == 0:
-            logger.info(
-                "recipes_search_empty_result",
-                query=q,
-                page=page,
-                per_page=per_page,
-                hint="La DB est peut-être vide — vérifier que le seed a été exécuté sur Supabase prod.",
-            )
-        else:
-            logger.debug(
-                "recipes_search_result",
-                query=q,
-                total=total,
-                page=page,
-                per_page=per_page,
-            )
+            # Sérialiser en dict JSON-safe pour le stockage Redis
+            return {
+                "results": [pydantic_to_cache(r) for r in recipes],
+                "total": total,
+                "query": q,
+                "page": page,
+                "per_page": per_page,
+            }
 
-        return RecipeSearchResult(
-            results=recipes, total=total, query=q, page=page, per_page=per_page
-        )
+        except Exception as exc:
+            # FIX PROD (2026-04-12) : retourner liste vide si DB inaccessible
+            logger.error("recipes_search_error", error=str(exc), query=q, page=page, per_page=per_page)
+            return {"results": [], "total": 0, "query": q, "page": page, "per_page": per_page}
 
-    except Exception as exc:
-        # FIX PROD (2026-04-12) : retourner une liste vide au lieu d'un 500
-        # si la DB Supabase est inaccessible (SSL, pas de données, timeout).
-        logger.error(
-            "recipes_search_error",
-            error=str(exc),
-            query=q,
-            page=page,
-            per_page=per_page,
-        )
-        return RecipeSearchResult(results=[], total=0, query=q, page=page, per_page=per_page)
+    # cache_response gère : hit Redis → retour direct / miss → _fetch_from_db / Redis down → fallback
+    cached = await cache_response(redis, cache_key, CACHE_TTL_RECIPE_LIST, _fetch_from_db)
+
+    return RecipeSearchResult(
+        results=[RecipeOut.model_validate(r) for r in cached["results"]],
+        total=cached["total"],
+        query=cached["query"],
+        page=cached["page"],
+        per_page=cached["per_page"],
+    )
 
 
 # -------------------------------------------------------------------------
@@ -468,6 +493,7 @@ async def get_recipe(
         RecipeDetail avec ingrédients et instructions complètes.
     """
     db_session = getattr(request.app.state, "db_session_factory", None)
+    redis = getattr(request.app.state, "redis", None)
 
     if db_session is None:
         logger.debug("get_recipe_no_db", recipe_id=str(recipe_id))
@@ -476,85 +502,100 @@ async def get_recipe(
             detail="Base de données non configurée.",
         )
 
-    async with db_session() as session:
-        from sqlalchemy import text
+    # ---- PERF-02 : Cache Redis TTL 1h sur le détail recette ----
+    cache_key = build_recipe_detail_key(str(recipe_id))
 
-        # Requête principale — métadonnées de la recette
-        # BUG 2 FIX (2026-04-12) : ajout de photo_url et description dans le SELECT
-        # pour éviter le crash frontend sur champs null/undefined non prévus
-        result = await session.execute(
-            text(
-                """
-                SELECT id, title, slug, source, servings, prep_time_min,
-                       cook_time_min, total_time_min, difficulty, cuisine_type,
-                       photo_url, description, tags, quality_score, instructions
-                FROM recipes
-                WHERE id = :recipe_id
-                LIMIT 1
-                """
-            ),
-            {"recipe_id": str(recipe_id)},
-        )
-        row = result.mappings().one_or_none()
+    async def _fetch_recipe_from_db() -> dict[str, Any]:
+        """
+        Query PostgreSQL pour le détail d'une recette.
+        Levée HTTPException 404 si introuvable — propagée hors du cache_response.
+        """
+        async with db_session() as session:
+            from sqlalchemy import text
 
-        if row is None:
-            logger.info("recipe_not_found", recipe_id=str(recipe_id))
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Recette {recipe_id} introuvable.",
+            # Requête principale — métadonnées de la recette
+            # BUG 2 FIX (2026-04-12) : ajout de photo_url et description dans le SELECT
+            # pour éviter le crash frontend sur champs null/undefined non prévus
+            result = await session.execute(
+                text(
+                    """
+                    SELECT id, title, slug, source, servings, prep_time_min,
+                           cook_time_min, total_time_min, difficulty, cuisine_type,
+                           photo_url, description, tags, quality_score, instructions
+                    FROM recipes
+                    WHERE id = :recipe_id
+                    LIMIT 1
+                    """
+                ),
+                {"recipe_id": str(recipe_id)},
             )
+            row = result.mappings().one_or_none()
 
-        # Jointure recipe_ingredients + ingredients — ingrédients avec quantités
-        ing_result = await session.execute(
-            text(
-                """
-                SELECT
-                    ri.ingredient_id,
-                    i.canonical_name,
-                    ri.quantity,
-                    ri.unit,
-                    ri.notes,
-                    ri.position
-                FROM recipe_ingredients ri
-                JOIN ingredients i ON i.id = ri.ingredient_id
-                WHERE ri.recipe_id = :recipe_id
-                ORDER BY ri.position
-                """
-            ),
-            {"recipe_id": str(recipe_id)},
+            if row is None:
+                logger.info("recipe_not_found", recipe_id=str(recipe_id))
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Recette {recipe_id} introuvable.",
+                )
+
+            # Jointure recipe_ingredients + ingredients — ingrédients avec quantités
+            ing_result = await session.execute(
+                text(
+                    """
+                    SELECT
+                        ri.ingredient_id,
+                        i.canonical_name,
+                        ri.quantity,
+                        ri.unit,
+                        ri.notes,
+                        ri.position
+                    FROM recipe_ingredients ri
+                    JOIN ingredients i ON i.id = ri.ingredient_id
+                    WHERE ri.recipe_id = :recipe_id
+                    ORDER BY ri.position
+                    """
+                ),
+                {"recipe_id": str(recipe_id)},
+            )
+            ingredient_rows = ing_result.mappings().all()
+
+        recipe_data = dict(row)
+        ingredients_data = [dict(ing_row) for ing_row in ingredient_rows]
+
+        logger.debug(
+            "recipe_detail_fetched_from_db",
+            recipe_id=str(recipe_id),
+            ingredients_count=len(ingredients_data),
         )
-        ingredient_rows = ing_result.mappings().all()
 
-    recipe_data = dict(row)
-    ingredients = [
-        RecipeIngredientDetail.model_validate(dict(ing_row))
-        for ing_row in ingredient_rows
-    ]
+        # BUG 2 FIX (2026-04-12) : construction explicite avec valeurs par défaut sûres
+        # pour éviter le crash frontend sur champs null/undefined.
+        detail = RecipeDetail(
+            id=recipe_data["id"],
+            title=recipe_data["title"],
+            slug=recipe_data["slug"],
+            source=recipe_data.get("source"),
+            servings=recipe_data.get("servings"),
+            prep_time_min=recipe_data.get("prep_time_min"),
+            cook_time_min=recipe_data.get("cook_time_min"),
+            total_time_min=recipe_data.get("total_time_min"),
+            difficulty=recipe_data.get("difficulty"),
+            cuisine_type=recipe_data.get("cuisine_type"),
+            photo_url=recipe_data.get("photo_url"),
+            description=recipe_data.get("description"),
+            tags=recipe_data.get("tags") or [],
+            quality_score=recipe_data.get("quality_score"),
+            instructions=recipe_data.get("instructions") or [],
+            ingredients=[
+                RecipeIngredientDetail.model_validate(ing) for ing in ingredients_data
+            ],
+        )
+        # Retourner un dict JSON-safe pour stockage Redis
+        return pydantic_to_cache(detail)
 
-    logger.debug(
-        "recipe_detail_served",
-        recipe_id=str(recipe_id),
-        ingredients_count=len(ingredients),
-    )
+    # cache_response : hit Redis → retour direct / miss → _fetch_recipe_from_db / Redis down → fallback
+    # HTTPException 404 levée dans le fallback se propage normalement (non catchée par cache_response)
+    cached = await cache_response(redis, cache_key, CACHE_TTL_RECIPE_DETAIL, _fetch_recipe_from_db)
 
-    # BUG 2 FIX (2026-04-12) : construction explicite avec valeurs par défaut sûres
-    # pour éviter le crash frontend sur champs null/undefined.
-    # description et photo_url sont maintenant inclus dans le SELECT et exposés ici.
-    return RecipeDetail(
-        id=recipe_data["id"],
-        title=recipe_data["title"],
-        slug=recipe_data["slug"],
-        source=recipe_data.get("source"),
-        servings=recipe_data.get("servings"),
-        prep_time_min=recipe_data.get("prep_time_min"),
-        cook_time_min=recipe_data.get("cook_time_min"),
-        total_time_min=recipe_data.get("total_time_min"),
-        difficulty=recipe_data.get("difficulty"),
-        cuisine_type=recipe_data.get("cuisine_type"),
-        photo_url=recipe_data.get("photo_url"),
-        description=recipe_data.get("description"),
-        tags=recipe_data.get("tags") or [],
-        quality_score=recipe_data.get("quality_score"),
-        instructions=recipe_data.get("instructions") or [],
-        ingredients=ingredients,
-    )
+    logger.debug("recipe_detail_served", recipe_id=str(recipe_id))
+    return RecipeDetail.model_validate(cached)

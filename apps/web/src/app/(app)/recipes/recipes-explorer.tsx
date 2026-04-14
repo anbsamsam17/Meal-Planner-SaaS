@@ -150,9 +150,8 @@ export function RecipesExplorer() {
     staleTime: 3 * 60 * 1000, // 3 minutes
   });
 
-  // L'API retourne { data, total } ou { results, total } — absorber les deux formats
-  const recipes: Recipe[] =
-    (data as any)?.results ?? (data as any)?.data ?? [];
+  // searchRecipesAdvanced normalise la réponse API (results → data) — lire directement data
+  const recipes: Recipe[] = data?.data ?? [];
   const totalCount = data?.total ?? 0;
   const totalPages = Math.ceil(totalCount / PER_PAGE);
 

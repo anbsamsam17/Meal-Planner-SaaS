@@ -16,6 +16,55 @@ links:
 
 ---
 
+## Session du : 2026-04-14 — Correction 2 problèmes P2 performance Redis — backend-developer
+
+**Scope** : `apps/api/src/core/cache.py` (nouveau) + `apps/api/src/main.py` + `apps/api/src/api/v1/recipes.py`
+**Statut** : Terminé — 1 fichier créé, 2 modifiés, lint ruff OK (0 erreurs sur les 3 fichiers)
+
+**PERF-01 — Latence Redis 801ms** :
+- Cause : `aioredis.from_url()` sans `ConnectionPool` → reconnexion TCP à chaque appel
+- Fix : `create_redis_pool()` dans `core/cache.py` — `ConnectionPool.from_url()` avec `max_connections=20`,
+  `socket_timeout=2.0`, `retry_on_timeout=True`, `health_check_interval=30`
+- Modifié `main.py` lifespan : remplace `aioredis.from_url()` par `create_redis_pool()`
+- Supprimé import `redis.asyncio as aioredis` inutile dans `main.py`
+
+**PERF-02 — Pas de cache Redis sur les recettes** :
+- Créé `core/cache.py` avec helper générique `cache_response[T]()` (cache-aside, PEP 695)
+- Pattern : hit Redis → retour direct / miss → query DB / Redis down → fallback transparent
+- `GET /recipes` (search) : cache 5min, clé basée sur tous les query params
+- `GET /recipes/{id}` (detail) : cache 1h, clé `presto:cache:recipe:{id}`
+- `GET /recipes/random` : pas de cache (intentionnel — doit être aléatoire)
+- HTTPException 404 se propage normalement hors du cache (non catchée)
+- `invalidate_recipes_cache()` disponible pour le scraper (TODO documenté dans cache.py)
+- `pydantic_to_cache()` pour sérialisation Pydantic v2 → dict JSON-safe (mode='json')
+
+---
+
+## Session du : 2026-04-14 — Correction 2 bugs P2 UX (REC-04, REC-05) — fullstack-developer
+
+**Scope** : `apps/api/src/api/v1/plans.py` + `apps/web/src/hooks/use-shopping-list.ts` + `apps/web/src/hooks/use-household.ts`
+**Statut** : Terminé — 3 fichiers modifiés, TypeScript OK (0 erreurs), Ruff OK (0 nouvelles erreurs)
+
+**REC-04 — Shopping list items cochés non persistés** :
+- Créé endpoint `PATCH /api/v1/plans/me/{plan_id}/shopping-list/{ingredient_id}` dans `plans.py`
+  - Charge le JSON de `shopping_lists.items`, trouve l'item par `ingredient_id`, met à jour `checked`, réenregistre
+  - Protégé par auth + vérification household_id + rate limit LIMIT_USER_WRITE
+  - Retourne `ShoppingListItemRead` avec le nouvel état
+- Modifié `use-shopping-list.ts` :
+  - `mutationFn` appelle maintenant `PATCH /api/v1/plans/me/{planId}/shopping-list/{itemId}`
+  - Supprimé le système localStorage (loadCheckedItems, saveCheckedItems, hydrateFromStorage)
+  - Conservé l'optimistic update + rollback sur erreur
+
+**REC-05 — Settings préférences foyer non pré-remplies** :
+- Modifié `use-household.ts` : ajout de la fonction `normalizeHousehold(raw: HouseholdRaw)` qui :
+  - Type séparé `HouseholdRaw` pour la réponse API brute (`HouseholdRead`)
+  - Extrait les prefs du membre owner → `HouseholdResponse.preferences`
+  - Aplatit `diet_tags/allergies/dislikes` depuis `members[].preferences` vers `HouseholdMember`
+  - Expose `household.household.drive_provider` (null pour l'instant, backend n'a pas ce champ encore)
+- L'`useEffect` de `settings-content.tsx` fonctionnait correctement — le bug était dans la normalisation
+
+---
+
 ## Session du : 2026-04-14 — Correction 3 problèmes P1 qualité données — backend-developer
 
 **Scope** : `apps/worker/src/scripts/translate_recipes.py` + `scripts/add_seasonal_tags.sql` + `scripts/add_diet_budget_tags.sql`
