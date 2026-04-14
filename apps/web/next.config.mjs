@@ -9,8 +9,8 @@ const bundleAnalyzer = withBundleAnalyzer({
 });
 
 // FIX Phase 1 (review 2026-04-12) : CSP améliorée avec séparation dev/prod
-// TODO Phase 2 : durcir en prod via nonces strict-dynamic pour éliminer unsafe-inline/unsafe-eval
-// Référence : FIX #5 code-review + H9 security audit
+// SEC-01 (2026-04-14) : durcissement CSP script-src en production
+// Référence : FIX #5 code-review + H9 security audit + SEC-01 P1
 const isDev = process.env.NODE_ENV === "development";
 
 // FIX Phase 1 (review 2026-04-12) : headers de sécurité complets — FIX #5
@@ -19,9 +19,30 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      // unsafe-eval requis par Next.js dev (HMR) — conditionné à l'env
-      // unsafe-inline requis pour les styles inline Next.js — à remplacer par nonces en Phase 2
-      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://*.posthog.com`,
+      // SEC-01 FIX (2026-04-14) — Durcissement script-src :
+      //
+      // POURQUOI 'unsafe-inline' reste nécessaire pour Next.js 14 :
+      //   Next.js injecte des <script> inline pour l'hydration, __NEXT_DATA__,
+      //   et le runtime de pages. Retirer 'unsafe-inline' sans configurer un
+      //   nonce dynamique (via next.config.js experimental.sri ou middleware)
+      //   casse l'hydration côté client → page blanche.
+      //
+      // MITIGATION en production : ajout de 'strict-dynamic'.
+      //   - 'strict-dynamic' indique au navigateur de ne faire confiance qu'aux
+      //     scripts chargés par un script déjà de confiance (chain of trust).
+      //   - En combinaison avec 'unsafe-inline', les navigateurs modernes (Chrome 76+,
+      //     Firefox 68+, Safari 15.4+) ignorent 'unsafe-inline' quand 'strict-dynamic'
+      //     est présent (CSP3 spec), ce qui bloque les injections XSS inline classiques.
+      //   - Les navigateurs legacy qui ignorent 'strict-dynamic' tombent sur
+      //     'unsafe-inline' comme fallback — pas de regression.
+      //
+      // Phase 3 : migrer vers des nonces dynamiques via un middleware Next.js
+      //   (experimental.sri ou headers() dans middleware.ts) pour éliminer
+      //   complètement 'unsafe-inline' du script-src.
+      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : " 'strict-dynamic'"} https://*.posthog.com`,
+      // style-src 'unsafe-inline' : requis par Next.js et Tailwind CSS pour les styles inline.
+      // Le retirer casserait le rendu (styled-jsx, className inline). Risque XSS style-based
+      // est faible comparé à script-based. Conservé intentionnellement.
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       // data: requis pour les fonts en base64 inline
       "font-src 'self' https://fonts.gstatic.com data:",

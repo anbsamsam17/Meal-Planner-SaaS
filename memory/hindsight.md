@@ -522,3 +522,19 @@ Le script de seed des 591 recettes insère dans `recipes` et `recipe_ingredients
 **Règle à retenir** : Tout script d'import de recettes (sample, Spoonacular, Marmiton) DOIT générer les embeddings si `sentence-transformers[ml]` est installé. Sinon, documenter explicitement que le backfill est requis après l'import. Le script de backfill `backfill_embeddings.py` est maintenant disponible pour corriger l'état actuel.
 
 **Comment l'éviter** : Ajouter une vérification en fin de script : `SELECT COUNT(*) FROM recipes r LEFT JOIN recipe_embeddings re ON re.recipe_id = r.id WHERE re.recipe_id IS NULL` doit retourner 0. Si > 0, warning avec la commande de backfill.
+
+---
+
+## 2026-04-14 — Fix 3 bugs P1 frontend (IMP-04, IMP-05, IMP-08) — nextjs-developer
+
+**IMP-04 — Quick filter écrasait les filtres sidebar via spread operator** :
+La construction `{ ...filters, ...(activeQuickFilter === "dessert" && { diet: "dessert" }) }` écrasait silencieusement le champ `diet` déjà posé par la sidebar. Le spread operator avec une clé identique écrase la valeur précédente — jamais évident quand les deux branches touchent le même champ.
+**Règle à retenir** : Quand un quick filter et un filtre avancé touchent le même champ (`diet`), fusionner explicitement les tableaux plutôt que d'utiliser le spread. Construire `activeFilters` dans une fonction dédiée `buildActiveFilters()` — plus lisible et testable qu'un objet littéral à 10 spreads conditionnels.
+
+**IMP-05 — Tags FR/EN incompatibles entre frontend et DB** :
+Le frontend envoyait des valeurs EN (`"gluten-free"`, `"lactose-free"`) mais la DB stocke des tags FR (`"sans-gluten"`, `"sans-lactose"`). Le mapping doit être côté API (serveur), pas côté frontend — le frontend ne connaît pas le format interne de la DB.
+**Règle à retenir** : Tout mapping de valeurs liées à la langue (FR↔EN sur les tags, libellés d'enum) doit vivre côté API. Le frontend envoie ce qu'il affiche à l'utilisateur — c'est à l'API de normaliser. Placer le dict de mapping `_DIET_EN_TO_FR` au point d'utilisation, pas dans un fichier de config séparé — minimal et lisible.
+
+**IMP-08 — Onboarding accessible sans auth (mauvaise UX 401 après submit)** :
+Les routes `/onboarding/*` n'étaient pas dans `PROTECTED_ROUTES`. L'utilisateur remplissait tout le formulaire avant de recevoir un 401 — expérience catastrophique. La protection middleware est préférable à une vérification dans le layout (edge runtime = ultra rapide, redirect avant rendu).
+**Règle à retenir** : Toute route qui appelle une API authentifiée DOIT être dans `PROTECTED_ROUTES` middleware. Vérifier systématiquement le middleware lors de l'ajout d'un nouveau groupe de routes `(onboarding)`, `(app)`, etc. La liste `PUBLIC_ROUTES` (commentaire documentation) ne doit jamais inclure des routes qui appellent des API protégées.

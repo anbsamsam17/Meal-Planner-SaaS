@@ -16,6 +16,32 @@ links:
 
 ---
 
+## Session du : 2026-04-14 — Correction 3 problèmes P1 qualité données — backend-developer
+
+**Scope** : `apps/worker/src/scripts/translate_recipes.py` + `scripts/add_seasonal_tags.sql` + `scripts/add_diet_budget_tags.sql`
+**Statut** : Terminé — 3 fichiers créés, lint ruff propre
+
+**DATA-01 — Traduction EN→FR (Python)** :
+Script `translate_recipes.py` créé. Utilise Gemini 2.0 Flash (structured output JSON).
+Heuristique de détection EN : absence d'accents FR + absence de mots FR courants.
+Idempotence via colonne `language` (ALTER TABLE ADD COLUMN IF NOT EXISTS).
+Batch de 10, throttle 4s entre batches (Gemini free tier 15 req/min).
+Retry tenacity (4 tentatives, backoff exponentiel). DRY_RUN supporté.
+
+**DATA-02 — Tags saisonniers (SQL)** :
+Script `add_seasonal_tags.sql` créé. 4 saisons : hiver, printemps, ete, automne.
+Double heuristique : EXISTS sur ingredients.canonical_name ILIKE + titre ILIKE.
+Idempotent : NOT (tag = ANY(tags)). Rapport SELECT final inclus.
+
+**DATA-03 — Tags régime/budget (SQL)** :
+Script `add_diet_budget_tags.sql` créé. Tags : végétarien, vegan, sans-porc, halal, économique, moyen, premium.
+Végétarien = NOT EXISTS sur liste exhaustive viandes/poissons.
+Vegan = végétarien + NOT EXISTS sur oeufs/lait/beurre/fromage/miel.
+Halal = sans-porc + NOT EXISTS sur alcools.
+Budget basé sur COUNT(recipe_ingredients) et difficulty. Idempotent.
+
+---
+
 ## Session du : 2026-04-13 — Debug bug critique "plan généré n'apparait pas" — react-specialist
 
 **Scope** : `apps/web/src/lib/api/endpoints.ts` + `apps/web/src/hooks/use-plan.ts`

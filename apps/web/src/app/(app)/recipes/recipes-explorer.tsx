@@ -106,18 +106,43 @@ export function RecipesExplorer() {
 
   const debouncedQuery = useDebounce(searchQuery, 350);
 
-  // Merge recherche textuelle + quick filter dans les filtres actifs
-  const activeFilters: RecipeFilters = {
-    ...filters,
-    q: debouncedQuery || undefined,
-    ...(activeQuickFilter === "quick" && { max_time: 15 }),
-    ...(activeQuickFilter === "dessert" && { diet: "dessert" }),
-    // BUG-008 fix : la DB contient surtout "végétarien" (FR), pas "vegetarian" (EN)
-    ...(activeQuickFilter === "vegetarian" && { diet: "végétarien" }),
-    ...(activeQuickFilter === "easy" && { difficulty: 2 }),
-    per_page: PER_PAGE,
-    page,
-  };
+  // Merge recherche textuelle + quick filter dans les filtres actifs.
+  // IMP-04 fix : les quick filters s'AJOUTENT aux filtres existants — ils ne remplacent pas `q`
+  // ni les autres filtres posés par la sidebar (cuisine, budget, etc.).
+  // Pour "dessert" et "végétarien" : on ajoute le tag au tableau diet existant sans l'écraser.
+  function buildActiveFilters(): RecipeFilters {
+    const base: RecipeFilters = {
+      ...filters,
+      q: debouncedQuery || undefined,
+      per_page: PER_PAGE,
+      page,
+    };
+
+    if (activeQuickFilter === "quick") {
+      // "Rapide" remplace max_time seulement si plus restrictif ou non défini
+      base.max_time = base.max_time != null ? Math.min(base.max_time, 15) : 15;
+    } else if (activeQuickFilter === "easy") {
+      // "Facile" remplace difficulty seulement si non défini ou plus restrictif (max difficulty 2)
+      const clamped = base.difficulty != null ? Math.min(base.difficulty as number, 2) : 2;
+      base.difficulty = clamped as 1 | 2 | 3 | 4 | 5;
+    } else if (activeQuickFilter === "dessert" || activeQuickFilter === "vegetarian") {
+      // Ajouter le tag quick dans le tableau diet sans écraser les tags sidebar existants
+      const quickTag = activeQuickFilter === "dessert" ? "dessert" : "végétarien";
+      const existing = Array.isArray(base.diet)
+        ? base.diet
+        : base.diet
+          ? [base.diet]
+          : [];
+      const merged = existing.includes(quickTag as any)
+        ? existing
+        : [...existing, quickTag];
+      base.diet = merged.length > 0 ? (merged as typeof base.diet) : undefined;
+    }
+
+    return base;
+  }
+
+  const activeFilters = buildActiveFilters();
 
   const { data, isLoading, isError } = useQuery<PaginatedResponse<Recipe>, Error>({
     queryKey: ["recipes", "explore", activeFilters, page],

@@ -18,11 +18,16 @@ const PROTECTED_ROUTES = [
   "/billing",
   "/fridge",
   "/books",
+  // IMP-08 fix (2026-04-14) : les pages d'onboarding nécessitent une session active.
+  // Sans protection, un utilisateur non connecté accède au formulaire, le soumet,
+  // et reçoit un 401 de l'API — mauvaise UX. Redirect vers /login avec param `redirect`.
+  "/onboarding",
+  "/generating",
 ];
 
 // Routes publiques — accessibles sans authentification (liste de référence pour documentation)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const PUBLIC_ROUTES = ["/", "/login", "/signup", "/onboarding", "/generating"];
+const PUBLIC_ROUTES = ["/", "/login", "/signup"];
 
 // Routes d'authentification — redirigent vers le dashboard si déjà connecté
 const AUTH_ROUTES = ["/login", "/signup"];

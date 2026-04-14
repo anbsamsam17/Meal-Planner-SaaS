@@ -324,9 +324,29 @@ async def search_recipes(
             # BUG P0 FIX (2026-04-14) : diet est maintenant list[str].
             # tags @> :diet_arr = "tags contient TOUS les éléments de diet_arr" (opérateur PostgreSQL).
             # Nécessite le cast ::text[] car SQLAlchemy passe la liste Python comme paramètre lié.
+            #
+            # IMP-05 fix (2026-04-14) : le frontend envoie des tags EN ("gluten-free", "lactose-free",
+            # "no-pork", "no-seafood", "nut-free") mais la DB stocke des tags FR ("sans-gluten",
+            # "sans-lactose", "sans-porc", "sans-fruits-de-mer", "sans-fruits-à-coque").
+            # Mapping minimal EN→FR appliqué ici côté API pour ne pas casser l'interface frontend.
+            _DIET_EN_TO_FR: dict[str, str] = {
+                "gluten-free": "sans-gluten",
+                "gluten_free": "sans-gluten",
+                "lactose-free": "sans-lactose",
+                "lactose_free": "sans-lactose",
+                "no-pork": "sans-porc",
+                "no_pork": "sans-porc",
+                "no-seafood": "sans-fruits-de-mer",
+                "no_seafood": "sans-fruits-de-mer",
+                "nut-free": "sans-fruits-à-coque",
+                "nut_free": "sans-fruits-à-coque",
+                "vegetarian": "végétarien",
+                "vegetarien": "végétarien",
+            }
             if diet:
+                normalized_diet = [_DIET_EN_TO_FR.get(tag, tag) for tag in diet]
                 conditions.append("tags @> :diet_arr::text[]")
-                params["diet_arr"] = diet
+                params["diet_arr"] = normalized_diet
 
             # Filtre saison (tag dans le tableau tags)
             if season is not None:

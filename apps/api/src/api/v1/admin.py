@@ -4,10 +4,10 @@ Endpoints d'administration — usage développement et ops.
 Ces endpoints permettent de déclencher manuellement des agents
 qui tournent normalement via Celery Beat (runs nocturnes).
 
-Politique d'accès :
-- Pas d'authentification JWT en développement (ENV=dev)
-- En production (ENV=prod ou staging) : à protéger via un token admin
-  dans les headers (TODO Phase 2 — Admin RBAC).
+Politique d'accès (SEC-02 FIX 2026-04-14) :
+- Authentification JWT obligatoire dans TOUS les environnements (dev, staging, prod).
+- TODO Phase 3 — Admin RBAC : restreindre aux utilisateurs avec rôle 'admin'
+  via un check supplémentaire sur le claim JWT role/app_metadata.
 
 Rate limit strict :
 - POST /admin/scout/run : 1 requête par heure
@@ -21,11 +21,27 @@ peut être activé en prod).
 import os
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from src.core.config import get_settings
+from src.core.security import TokenPayload, get_current_user
+
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+# SEC-02 FIX (2026-04-14) — Authentification obligatoire sur tous les endpoints admin.
+# POURQUOI : les endpoints admin (scout/run) déclenchent des opérations coûteuses
+# (scraping, tâches Celery). Sans auth, n'importe quel appelant peut les déclencher,
+# ce qui constitue un risque d'abus et de déni de service.
+# L'ancienne politique "pas d'auth en dev" laissait la porte ouverte en production
+# si ENV n'était pas correctement configuré. On exige désormais un JWT valide
+# dans TOUS les environnements.
+def get_current_user_dep(request: Request) -> TokenPayload:
+    """Dépendance FastAPI pour l'authentification JWT sur les routes admin."""
+    settings = get_settings()
+    return get_current_user(request, settings.SUPABASE_ANON_KEY)
 
 # ---- Schémas de réponse ----
 
@@ -126,10 +142,14 @@ async def _set_scout_rate_limit(request: Request) -> None:
         "Lance un batch de scraping RECIPE_SCOUT (10 recettes Marmiton par défaut). "
         "Déclenche une tâche Celery si le broker est disponible, "
         "sinon exécute en mode synchrone (pour les tests locaux sans Celery). "
+        "Requiert une authentification JWT valide (SEC-02). "
         "Rate limit : 1 requête par heure."
     ),
     response_model=ScoutRunResponse,
     responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Authentification JWT requise."
+        },
         status.HTTP_429_TOO_MANY_REQUESTS: {
             "description": "Run déjà déclenché récemment — attendre 1 heure."
         },
@@ -142,6 +162,7 @@ async def trigger_scout_run(
     request: Request,
     max_recipes: int = 10,
     sources: str = "marmiton",
+    user: TokenPayload = Depends(get_current_user_dep),
 ) -> Any:
     """
     Déclenche un run RECIPE_SCOUT via Celery ou en mode synchrone.
@@ -169,11 +190,13 @@ async def trigger_scout_run(
     # ---- Vérification rate limit ----
     await _check_scout_rate_limit(request)
 
+    # SEC-02 (2026-04-14) : log de sécurité — qui déclenche l'opération admin
     logger.info(
         "admin_scout_run_triggered",
         max_recipes=max_recipes,
         sources=sources_list,
         env=os.getenv("ENV", "dev"),
+        triggered_by=user.user_id,
     )
 
     # ---- Tentative de déclenchement via Celery ----

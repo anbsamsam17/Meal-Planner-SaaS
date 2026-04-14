@@ -354,7 +354,19 @@ export function SettingsContent() {
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, theme: value }))}
+                  onClick={() => {
+                    setForm((prev) => ({ ...prev, theme: value }));
+                    // Appliquer le thème immédiatement sans attendre la sauvegarde
+                    if (value === "dark") {
+                      document.documentElement.classList.add("dark");
+                    } else if (value === "light") {
+                      document.documentElement.classList.remove("dark");
+                    } else {
+                      // system : détecter la préférence OS
+                      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+                      document.documentElement.classList.toggle("dark", prefersDark);
+                    }
+                  }}
                   aria-pressed={isSelected}
                   className={`flex flex-col items-center gap-2 rounded-xl border py-4 text-sm font-medium transition-all
                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500
