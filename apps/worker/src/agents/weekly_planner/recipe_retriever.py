@@ -311,6 +311,15 @@ async def _retrieve_by_quality(
     """
     Fallback : classement par quality_score pour les nouveaux foyers.
 
+    Utilisé quand le foyer n'a pas encore de vecteur de goût (pas de feedbacks).
+    Ne dépend PAS de recipe_embeddings : filtre directement sur les colonnes
+    de la table recipes (total_time_min, tags) pour fonctionner même si la
+    table recipe_embeddings est vide.
+
+    BUG FIX (2026-04-14) : l'ancienne implémentation faisait un JOIN recipe_embeddings
+    inutile (la table était vide → 0 résultats → double-fallback non intentionnel vers
+    _retrieve_by_quality_no_embedding). Corrigé en filtrant sur r.total_time_min et r.tags.
+
     Args:
         session: Session SQLAlchemy async.
         constraints: Contraintes du foyer.
@@ -331,14 +340,12 @@ async def _retrieve_by_quality(
         excluded_ids_clause = "AND r.id::text != ALL(:recent_ids)"
         params["recent_ids"] = recent_ids
 
+    # Filtre sur r.tags directement (pas besoin de recipe_embeddings)
     excluded_tags_clause = ""
     if constraints.excluded_tags:
-        excluded_tags_clause = "AND NOT (re.tags && :excluded_tags)"
+        excluded_tags_clause = "AND NOT (r.tags && :excluded_tags)"
         params["excluded_tags"] = constraints.excluded_tags
 
-    # FIX Phase 1 mature (review 2026-04-12) — BUG #3 :
-    # re.total_time_min dans WHERE est correct : colonne dénormalisée sur recipe_embeddings.
-    # r.total_time_min dans SELECT est correct : colonne générée sur recipes.
     sql = f"""
         SELECT
             r.id::text,
@@ -354,9 +361,8 @@ async def _retrieve_by_quality(
             r.photo_url,
             0.0 AS distance
         FROM recipes r
-        JOIN recipe_embeddings re ON re.recipe_id = r.id
         WHERE r.quality_score >= :quality_min
-          AND (re.total_time_min IS NULL OR re.total_time_min <= :time_max)
+          AND (r.total_time_min IS NULL OR r.total_time_min <= :time_max)
           {excluded_tags_clause}
           {excluded_ids_clause}
         ORDER BY r.quality_score DESC, RANDOM()

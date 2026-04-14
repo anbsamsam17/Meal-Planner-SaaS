@@ -201,6 +201,215 @@ async def get_random_recipes(
 
 
 @router.get(
+    "",
+    summary="Recherche de recettes",
+    description=(
+        "Recherche de recettes par mot-clé dans le titre et les tags. "
+        "En v0 : recherche ILIKE (trigramme pg_trgm). "
+        "Phase 2 : filtres avancés budget, difficulté, régime alimentaire, saison. "
+        "Rate limit : 60 req/min par utilisateur (plus coûteux en DB que le GET par ID)."
+    ),
+    response_model=RecipeSearchResult,
+    responses={429: {"description": "Rate limit dépassé — voir header Retry-After"}},
+)
+# Phase 2 — Filtres avancés ajoutés : budget, difficulty range, diet, season
+async def search_recipes(
+    request: Request,
+    q: str = Query(
+        default="",
+        description="Mot-clé de recherche (titre, tags, cuisine).",
+        max_length=200,
+    ),
+    page: int = Query(default=1, ge=1, description="Numéro de page (commence à 1)."),
+    per_page: int = Query(
+        default=20, ge=1, le=100, description="Nombre de résultats par page (max 100)."
+    ),
+    cuisine: str | None = Query(default=None, description="Filtre par type de cuisine."),
+    max_time: int | None = Query(
+        default=None, ge=5, le=300, description="Temps total max en minutes."
+    ),
+    # ---- Filtres Phase 2 ----
+    budget: str | None = Query(
+        default=None,
+        description="Filtre par budget : 'économique', 'moyen', 'premium'. "
+        "Filtre sur le tag correspondant de la recette.",
+    ),
+    min_difficulty: int | None = Query(
+        default=None, ge=1, le=5, description="Difficulté minimale (1=très facile, 5=expert)."
+    ),
+    max_difficulty: int | None = Query(
+        default=None, ge=1, le=5, description="Difficulté maximale (1=très facile, 5=expert)."
+    ),
+    # BUG P0 FIX (2026-04-14) : multi-select diet — accepte plusieurs valeurs
+    # ex: ?diet=végétarien&diet=sans-gluten → list[str] via Query(None)
+    diet: list[str] | None = Query(
+        default=None,
+        description="Filtre régime alimentaire (multi-select) : 'végétarien', 'sans-gluten', 'vegan', etc. "
+        "Accepte plusieurs valeurs (?diet=végétarien&diet=sans-gluten). "
+        "Filtre sur le tableau tags de la recette (AND logique : tous les régimes doivent matcher).",
+    ),
+    season: str | None = Query(
+        default=None,
+        description="Filtre saison : 'printemps', 'été', 'automne', 'hiver'. "
+        "Filtre sur le tableau tags de la recette.",
+    ),
+) -> RecipeSearchResult:
+    """
+    Recherche de recettes avec filtres et pagination.
+
+    Stratégie v0 : ILIKE sur le titre + filtre sur les tags (GIN index).
+    Stratégie Phase 1 : recherche sémantique pgvector (cosine similarity).
+
+    Les résultats sont ordonnés par quality_score DESC pour privilégier
+    les recettes les mieux notées par le pipeline de validation LLM.
+
+    Args:
+        request: Requête FastAPI.
+        q: Terme de recherche (titre / tags).
+        page: Page courante.
+        per_page: Taille de page.
+        cuisine: Filtre optionnel sur cuisine_type.
+        max_time: Filtre optionnel sur total_time_min.
+
+    Returns:
+        RecipeSearchResult avec pagination.
+    """
+    db_session = getattr(request.app.state, "db_session_factory", None)
+    offset = (page - 1) * per_page
+
+    if db_session is None:
+        logger.warning("search_recipes_no_db_session", hint="app.state.db_session_factory est None — la DB n'est pas connectée")
+        return RecipeSearchResult(
+            results=[], total=0, query=q, page=page, per_page=per_page
+        )
+
+    try:
+        async with db_session() as session:
+            from sqlalchemy import text
+
+            # Construction dynamique de la requête avec filtres optionnels
+            # Utilise des paramètres liés pour éviter l'injection SQL
+            conditions = ["quality_score >= 0.6"]
+            params: dict[str, Any] = {"limit": per_page, "offset": offset}
+
+            if q:
+                conditions.append("title ILIKE :query")
+                params["query"] = f"%{q}%"
+
+            if cuisine:
+                conditions.append("cuisine_type = :cuisine")
+                params["cuisine"] = cuisine
+
+            if max_time is not None:
+                conditions.append("total_time_min <= :max_time")
+                params["max_time"] = max_time
+
+            # ---- Filtres Phase 2 ----
+
+            # Filtre budget (tag sur la recette : 'économique', 'moyen', 'premium')
+            if budget is not None:
+                conditions.append(":budget = ANY(tags)")
+                params["budget"] = budget
+
+            # Filtre difficulté (range min/max sur colonne difficulty 1-5)
+            if min_difficulty is not None:
+                conditions.append("difficulty >= :min_difficulty")
+                params["min_difficulty"] = min_difficulty
+
+            if max_difficulty is not None:
+                conditions.append("difficulty <= :max_difficulty")
+                params["max_difficulty"] = max_difficulty
+
+            # Filtre régime alimentaire (multi-select — AND logique entre les régimes)
+            # BUG P0 FIX (2026-04-14) : diet est maintenant list[str].
+            # tags @> :diet_arr = "tags contient TOUS les éléments de diet_arr" (opérateur PostgreSQL).
+            # Nécessite le cast ::text[] car SQLAlchemy passe la liste Python comme paramètre lié.
+            if diet:
+                conditions.append("tags @> :diet_arr::text[]")
+                params["diet_arr"] = diet
+
+            # Filtre saison (tag dans le tableau tags)
+            if season is not None:
+                conditions.append(":season = ANY(tags)")
+                params["season"] = season
+
+            where_clause = " AND ".join(conditions)
+
+            # FIX Phase 1 mature (review 2026-04-12) — BUG #8 :
+            # Remplacement du double COUNT+SELECT (2 round-trips) par un seul SELECT
+            # avec COUNT(*) OVER() comme window function → 1 seul round-trip DB.
+            # Gain estimé : -15ms p95 (élimination d'un round-trip réseau Supabase).
+            # BUG 1 FIX (2026-04-12) : ajout de photo_url dans le SELECT
+            rows_result = await session.execute(
+                text(
+                    f"""
+                    SELECT id, title, slug, source, servings, prep_time_min,
+                           cook_time_min, total_time_min, difficulty, cuisine_type,
+                           photo_url, tags, quality_score,
+                           COUNT(*) OVER() AS total_count
+                    FROM recipes
+                    WHERE {where_clause}
+                    ORDER BY quality_score DESC NULLS LAST, created_at DESC
+                    LIMIT :limit OFFSET :offset
+                    """
+                ),
+                params,
+            )
+            rows = rows_result.mappings().all()
+            total: int = int(rows[0]["total_count"]) if rows else 0
+
+        # FIX Phase 1 mature (review 2026-04-12) — BUG #8 :
+        # Exclure total_count de la sérialisation RecipeOut (champ window function uniquement).
+        recipes = [
+            RecipeOut.model_validate({k: v for k, v in dict(row).items() if k != "total_count"})
+            for row in rows
+        ]
+
+        # FIX PROD (2026-04-12) : log INFO quand la DB retourne 0 recettes —
+        # permet de diagnostiquer rapidement un seed manquant sur Supabase prod
+        # sans avoir à faire un curl manuel sur la DB.
+        if total == 0:
+            logger.info(
+                "recipes_search_empty_result",
+                query=q,
+                page=page,
+                per_page=per_page,
+                hint="La DB est peut-être vide — vérifier que le seed a été exécuté sur Supabase prod.",
+            )
+        else:
+            logger.debug(
+                "recipes_search_result",
+                query=q,
+                total=total,
+                page=page,
+                per_page=per_page,
+            )
+
+        return RecipeSearchResult(
+            results=recipes, total=total, query=q, page=page, per_page=per_page
+        )
+
+    except Exception as exc:
+        # FIX PROD (2026-04-12) : retourner une liste vide au lieu d'un 500
+        # si la DB Supabase est inaccessible (SSL, pas de données, timeout).
+        logger.error(
+            "recipes_search_error",
+            error=str(exc),
+            query=q,
+            page=page,
+            per_page=per_page,
+        )
+        return RecipeSearchResult(results=[], total=0, query=q, page=page, per_page=per_page)
+
+
+# -------------------------------------------------------------------------
+# BUG P0 FIX (2026-04-14) — Route /{recipe_id} déclarée APRÈS les routes statiques
+# pour éviter que FastAPI mappe "search" comme UUID → 422.
+# Ordre correct : /random → "" (search) → /{recipe_id}
+# -------------------------------------------------------------------------
+
+
+@router.get(
     "/{recipe_id}",
     summary="Détail d'une recette avec ingrédients",
     description=(
@@ -329,199 +538,3 @@ async def get_recipe(
         instructions=recipe_data.get("instructions") or [],
         ingredients=ingredients,
     )
-
-
-@router.get(
-    "",
-    summary="Recherche de recettes",
-    description=(
-        "Recherche de recettes par mot-clé dans le titre et les tags. "
-        "En v0 : recherche ILIKE (trigramme pg_trgm). "
-        "Phase 2 : filtres avancés budget, difficulté, régime alimentaire, saison. "
-        "Rate limit : 60 req/min par utilisateur (plus coûteux en DB que le GET par ID)."
-    ),
-    response_model=RecipeSearchResult,
-    responses={429: {"description": "Rate limit dépassé — voir header Retry-After"}},
-)
-# Phase 2 — Filtres avancés ajoutés : budget, difficulty range, diet, season
-async def search_recipes(
-    request: Request,
-    q: str = Query(
-        default="",
-        description="Mot-clé de recherche (titre, tags, cuisine).",
-        max_length=200,
-    ),
-    page: int = Query(default=1, ge=1, description="Numéro de page (commence à 1)."),
-    per_page: int = Query(
-        default=20, ge=1, le=100, description="Nombre de résultats par page (max 100)."
-    ),
-    cuisine: str | None = Query(default=None, description="Filtre par type de cuisine."),
-    max_time: int | None = Query(
-        default=None, ge=5, le=300, description="Temps total max en minutes."
-    ),
-    # ---- Filtres Phase 2 ----
-    budget: str | None = Query(
-        default=None,
-        description="Filtre par budget : 'économique', 'moyen', 'premium'. "
-        "Filtre sur le tag correspondant de la recette.",
-    ),
-    min_difficulty: int | None = Query(
-        default=None, ge=1, le=5, description="Difficulté minimale (1=très facile, 5=expert)."
-    ),
-    max_difficulty: int | None = Query(
-        default=None, ge=1, le=5, description="Difficulté maximale (1=très facile, 5=expert)."
-    ),
-    diet: str | None = Query(
-        default=None,
-        description="Filtre régime alimentaire : 'végétarien', 'sans-gluten', 'vegan', etc. "
-        "Filtre sur le tableau tags de la recette.",
-    ),
-    season: str | None = Query(
-        default=None,
-        description="Filtre saison : 'printemps', 'été', 'automne', 'hiver'. "
-        "Filtre sur le tableau tags de la recette.",
-    ),
-) -> RecipeSearchResult:
-    """
-    Recherche de recettes avec filtres et pagination.
-
-    Stratégie v0 : ILIKE sur le titre + filtre sur les tags (GIN index).
-    Stratégie Phase 1 : recherche sémantique pgvector (cosine similarity).
-
-    Les résultats sont ordonnés par quality_score DESC pour privilégier
-    les recettes les mieux notées par le pipeline de validation LLM.
-
-    Args:
-        request: Requête FastAPI.
-        q: Terme de recherche (titre / tags).
-        page: Page courante.
-        per_page: Taille de page.
-        cuisine: Filtre optionnel sur cuisine_type.
-        max_time: Filtre optionnel sur total_time_min.
-
-    Returns:
-        RecipeSearchResult avec pagination.
-    """
-    db_session = getattr(request.app.state, "db_session_factory", None)
-    offset = (page - 1) * per_page
-
-    if db_session is None:
-        logger.warning("search_recipes_no_db_session", hint="app.state.db_session_factory est None — la DB n'est pas connectée")
-        return RecipeSearchResult(
-            results=[], total=0, query=q, page=page, per_page=per_page
-        )
-
-    try:
-        async with db_session() as session:
-            from sqlalchemy import text
-
-            # Construction dynamique de la requête avec filtres optionnels
-            # Utilise des paramètres liés pour éviter l'injection SQL
-            conditions = ["quality_score >= 0.6"]
-            params: dict[str, Any] = {"limit": per_page, "offset": offset}
-
-            if q:
-                conditions.append("title ILIKE :query")
-                params["query"] = f"%{q}%"
-
-            if cuisine:
-                conditions.append("cuisine_type = :cuisine")
-                params["cuisine"] = cuisine
-
-            if max_time is not None:
-                conditions.append("total_time_min <= :max_time")
-                params["max_time"] = max_time
-
-            # ---- Filtres Phase 2 ----
-
-            # Filtre budget (tag sur la recette : 'économique', 'moyen', 'premium')
-            if budget is not None:
-                conditions.append(":budget = ANY(tags)")
-                params["budget"] = budget
-
-            # Filtre difficulté (range min/max sur colonne difficulty 1-5)
-            if min_difficulty is not None:
-                conditions.append("difficulty >= :min_difficulty")
-                params["min_difficulty"] = min_difficulty
-
-            if max_difficulty is not None:
-                conditions.append("difficulty <= :max_difficulty")
-                params["max_difficulty"] = max_difficulty
-
-            # Filtre régime alimentaire (tag dans le tableau tags)
-            if diet is not None:
-                conditions.append(":diet = ANY(tags)")
-                params["diet"] = diet
-
-            # Filtre saison (tag dans le tableau tags)
-            if season is not None:
-                conditions.append(":season = ANY(tags)")
-                params["season"] = season
-
-            where_clause = " AND ".join(conditions)
-
-            # FIX Phase 1 mature (review 2026-04-12) — BUG #8 :
-            # Remplacement du double COUNT+SELECT (2 round-trips) par un seul SELECT
-            # avec COUNT(*) OVER() comme window function → 1 seul round-trip DB.
-            # Gain estimé : -15ms p95 (élimination d'un round-trip réseau Supabase).
-            # BUG 1 FIX (2026-04-12) : ajout de photo_url dans le SELECT
-            rows_result = await session.execute(
-                text(
-                    f"""
-                    SELECT id, title, slug, source, servings, prep_time_min,
-                           cook_time_min, total_time_min, difficulty, cuisine_type,
-                           photo_url, tags, quality_score,
-                           COUNT(*) OVER() AS total_count
-                    FROM recipes
-                    WHERE {where_clause}
-                    ORDER BY quality_score DESC NULLS LAST, created_at DESC
-                    LIMIT :limit OFFSET :offset
-                    """
-                ),
-                params,
-            )
-            rows = rows_result.mappings().all()
-            total: int = int(rows[0]["total_count"]) if rows else 0
-
-        # FIX Phase 1 mature (review 2026-04-12) — BUG #8 :
-        # Exclure total_count de la sérialisation RecipeOut (champ window function uniquement).
-        recipes = [
-            RecipeOut.model_validate({k: v for k, v in dict(row).items() if k != "total_count"})
-            for row in rows
-        ]
-
-        # FIX PROD (2026-04-12) : log INFO quand la DB retourne 0 recettes —
-        # permet de diagnostiquer rapidement un seed manquant sur Supabase prod
-        # sans avoir à faire un curl manuel sur la DB.
-        if total == 0:
-            logger.info(
-                "recipes_search_empty_result",
-                query=q,
-                page=page,
-                per_page=per_page,
-                hint="La DB est peut-être vide — vérifier que le seed a été exécuté sur Supabase prod.",
-            )
-        else:
-            logger.debug(
-                "recipes_search_result",
-                query=q,
-                total=total,
-                page=page,
-                per_page=per_page,
-            )
-
-        return RecipeSearchResult(
-            results=recipes, total=total, query=q, page=page, per_page=per_page
-        )
-
-    except Exception as exc:
-        # FIX PROD (2026-04-12) : retourner une liste vide au lieu d'un 500
-        # si la DB Supabase est inaccessible (SSL, pas de données, timeout).
-        logger.error(
-            "recipes_search_error",
-            error=str(exc),
-            query=q,
-            page=page,
-            per_page=per_page,
-        )
-        return RecipeSearchResult(results=[], total=0, query=q, page=page, per_page=per_page)

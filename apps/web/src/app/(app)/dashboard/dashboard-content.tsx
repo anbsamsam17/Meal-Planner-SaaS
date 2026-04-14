@@ -10,6 +10,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { useWeekOffset } from "@/components/dashboard/week-offset-context";
 import { CalendarDays, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -32,8 +33,12 @@ interface DashboardContentProps {
 }
 
 export function DashboardContent({ initialPlanData }: DashboardContentProps) {
+  // weekOffset partagé avec WeekNavigator via le contexte
+  const { weekOffset } = useWeekOffset();
+
   // TanStack Query prend le relais cote client, initialPlanData sert de placeholder
-  const { data: planDetail, isLoading, isGenerating, setIsGenerating } = useCurrentPlan();
+  // weekOffset transmis pour fetcher le plan de la semaine sélectionnée
+  const { data: planDetail, isLoading, isGenerating, setIsGenerating } = useCurrentPlan(weekOffset);
   // Generation synchrone — apres le 200, on refetch le plan courant
   const generateMutation = useGeneratePlan(setIsGenerating);
 

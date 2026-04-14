@@ -157,6 +157,20 @@ export function getCurrentMonday(): string {
   return `${y}-${m}-${d}`;
 }
 
+// Calcule le lundi de la semaine courante + un offset en semaines.
+// offset=0 → semaine courante, offset=-1 → semaine précédente, offset=+1 → semaine suivante.
+export function getMondayWithOffset(offset: number): string {
+  const now = new Date();
+  const dayOfWeekUTC = now.getUTCDay();
+  const daysSinceMonday = dayOfWeekUTC === 0 ? 6 : dayOfWeekUTC - 1;
+  const monday = new Date(now);
+  monday.setUTCDate(now.getUTCDate() - daysSinceMonday + offset * 7);
+  const y = monday.getUTCFullYear();
+  const m = String(monday.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(monday.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export interface RecipeSearchParams {
   q?: string;
   cuisine?: string;
@@ -253,8 +267,9 @@ export async function getPlan(id: string): Promise<PlanDetail> {
   return normalizePlanDetail(raw);
 }
 
-export async function getCurrentPlan(): Promise<PlanDetail | null> {
-  const raw = await apiClient.get<Record<string, unknown> | null>("/api/v1/plans/me/current");
+export async function getCurrentPlan(weekStart?: string): Promise<PlanDetail | null> {
+  const qs = weekStart ? `?week_start=${weekStart}` : "";
+  const raw = await apiClient.get<Record<string, unknown> | null>(`/api/v1/plans/me/current${qs}`);
   if (!raw || typeof raw !== "object" || !("id" in raw)) return null;
   return normalizePlanDetail(raw);
 }

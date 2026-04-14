@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getCurrentPlan,
+  getMondayWithOffset,
   getPlan,
   generatePlan,
   swapMeal,
@@ -32,14 +33,18 @@ export const PLAN_QUERY_KEYS = {
 // Hook — Plan courant (GET /api/v1/plans/me/current)
 // La generation est SYNCHRONE (200 OK) — pas besoin de polling.
 // Apres generate, on fait un simple refetch pour recuperer le nouveau plan.
-export function useCurrentPlan() {
+// weekOffset=0 → semaine courante, -1 → semaine précédente, +1 → semaine suivante.
+export function useCurrentPlan(weekOffset = 0) {
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // weekStart calculé depuis l'offset — change la query key pour forcer un refetch
+  const weekStart = getMondayWithOffset(weekOffset);
+
   const query = useQuery<PlanDetail | null, Error>({
-    queryKey: PLAN_QUERY_KEYS.current,
+    queryKey: [...PLAN_QUERY_KEYS.current, weekStart] as const,
     queryFn: async () => {
       try {
-        return await getCurrentPlan();
+        return await getCurrentPlan(weekStart);
       } catch (err) {
         if (err instanceof Error && err.message.includes("404")) {
           return null;

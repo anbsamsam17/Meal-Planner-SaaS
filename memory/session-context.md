@@ -16,6 +16,29 @@ links:
 
 ---
 
+## Session du : 2026-04-13 — Debug bug critique "plan généré n'apparait pas" — react-specialist
+
+**Scope** : `apps/web/src/lib/api/endpoints.ts` + `apps/web/src/hooks/use-plan.ts`
+**Statut** : Terminé — 2 fichiers modifiés, 4 bugs corrigés
+
+**Bug 1 (BLOQUEUR) — UTC/local mismatch dans `getCurrentMonday()`** :
+`getDay()` (local) + `toISOString()` (UTC) = mismatch de date la nuit du dimanche au lundi en UTC+1/+2.
+Correction : tout passe par les méthodes UTC (`getUTCDay`, `setUTCDate`, `getUTCFullYear/Month/Date`).
+Formatter manuel `YYYY-MM-DD` — plus de `toISOString().split("T")[0]`.
+
+**Bug 2 (BLOQUEUR) — `onSuccess` ignorait la réponse du backend** :
+Si le backend retourne le plan directement (synchrone), `_data` était ignoré. Correction : détection du cas synchrone (`"id" in data && !("task_id" in data)`) → `setQueryData` immédiat, toast succès, pas de polling.
+
+**Bug 3 (BLOQUEUR) — `void invalidateQueries()` avant `startPolling()`** :
+Le premier refetch partait avec `refetchInterval: false` (isGenerating encore false). Correction : `invalidateQueries(...).then(() => startPolling(...))` — le polling est actif avant le refetch.
+
+**Bug 4 (MINEUR) — `startPolling` non memoize** :
+Recréée à chaque render. Correction : wrappée dans `useCallback`.
+
+**Bonus** : `refetchIntervalInBackground: isGenerating` ajouté pour garantir le polling même si l'onglet est en arrière-plan.
+
+---
+
 ## Session du : 2026-04-13 — Fix 5 bugs audit backend/DB — backend-developer
 
 **Scope** : `apps/worker/src/agents/weekly_planner/recipe_retriever.py` + SQL direct Supabase

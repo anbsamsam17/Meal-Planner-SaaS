@@ -32,8 +32,7 @@ export function OnboardingProgressBar() {
     >
       <div className="mx-auto flex max-w-sm items-center gap-2">
         {[1, 2, 3].map((step) => {
-          const progress =
-            currentStep >= step ? 100 : currentStep === step - 1 ? 0 : 0;
+          const progress = currentStep >= step ? 100 : 0;
           return (
             <div
               key={step}

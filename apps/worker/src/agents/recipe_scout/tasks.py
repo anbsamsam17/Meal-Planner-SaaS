@@ -287,7 +287,8 @@ def embed_recipe(self, recipe_id: str) -> dict[str, Any]:
             )
 
             # Calcul de l'embedding
-            embedding = embedder.embed(text_to_embed)
+            # BUG FIX (2026-04-14) : embed() n'existe pas — la méthode correcte est embed_text()
+            embedding = embedder.embed_text(text_to_embed)
             embedding_str = "[" + ",".join(str(round(v, 6)) for v in embedding) + "]"
 
             # Insertion ou mise à jour dans recipe_embeddings

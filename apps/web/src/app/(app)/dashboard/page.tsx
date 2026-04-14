@@ -6,29 +6,15 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { createServerClient } from "@/lib/supabase/server";
-import { DashboardContent } from "./dashboard-content";
-import { WeekNavigator } from "@/components/dashboard/week-navigator";
+import { DashboardShell } from "./dashboard-shell";
 
 export const metadata: Metadata = {
   title: "Planning de la semaine",
   description: "Votre planning de dîners pour la semaine",
 };
 
-// Calcul du label de la semaine courante
-function getWeekLabel(): string {
-  const today = new Date();
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - today.getDay() + 1); // Lundi
-  return weekStart.toLocaleDateString("fr-FR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
-
 export default async function DashboardPage() {
   const supabase = createServerClient();
-  const weekLabel = getWeekLabel();
 
   // Récupérer le JWT Supabase pour l'appel API server-side
   const { data: { user } } = await supabase.auth.getUser();
@@ -69,33 +55,9 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="min-h-full bg-[#fff8f6] px-4 py-6 md:px-6 lg:px-10">
-      {/* Header de la page */}
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          {/* BUG 5 FIX : message de bienvenue personnalisé */}
-          {firstName && (
-            <p className="mb-0.5 text-sm font-medium text-primary-600">
-              Bonjour {firstName} !
-            </p>
-          )}
-          <h1 className="font-serif text-3xl font-bold text-neutral-900 dark:text-neutral-100 md:text-4xl">
-            Ma semaine
-          </h1>
-          <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-            Semaine du {weekLabel}
-          </p>
-        </div>
-
-        {/* Navigation semaine — Client Component avec state weekOffset */}
-        <WeekNavigator />
-      </div>
-
-      {/* Contenu du dashboard — Client Component pour les mutations */}
-      <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardContent initialPlanData={initialPlanData} />
-      </Suspense>
-    </div>
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardShell firstName={firstName} initialPlanData={initialPlanData} />
+    </Suspense>
   );
 }
 

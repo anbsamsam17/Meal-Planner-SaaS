@@ -18,6 +18,13 @@ links:
 
 ---
 
+## 2026-04-15 — Supabase utilise ES256 (ECDSA), pas HS256 (HMAC)
+**Erreur commise** : On a supposé que Supabase signait les JWT avec HS256 (HMAC symétrique) et tenté de vérifier avec SUPABASE_JWT_SECRET et SUPABASE_ANON_KEY. 4 déploiements ont échoué avec des 401 sur toutes les requêtes.
+**Règle à retenir** : Les projets Supabase récents utilisent ES256 (ECDSA P-256) pour signer les JWT. La vérification se fait avec la clé publique JWKS à `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`, pas avec un secret symétrique. Toujours lire `jwt.get_unverified_header(token)` pour détecter l'algorithme avant de vérifier.
+**Comment l'éviter** : Avant toute modification de `security.py`, vérifier l'en-tête `alg` d'un vrai token. Ne jamais hardcoder `algorithms=["HS256"]` sans diagnostic.
+
+---
+
 ## Comment utiliser ce fichier
 
 Claude doit ajouter une entrée à la fin de chaque session significative :
@@ -443,3 +450,75 @@ serait une double facturation inutile pour du batch nocturne qui n'a pas besoin 
 - Ne pas oublier de mettre à jour `layout.tsx` quand on change le nom d'export dans `fonts.ts` — l'import `fraunces` → `notoSerif` doit être propagé dans la même passe.
 
 <!-- Les entrées suivantes seront ajoutées automatiquement par Claude après chaque session -->
+
+## 2026-04-14 — Fix page /login bloquée indéfiniment sur le skeleton recettes (nextjs-developer)
+
+**Erreur commise** : `LoginPage` était un Client Component (`"use client"`) qui appelait `useSearchParams()` directement dans le corps du composant export default, sans Suspense boundary. Next.js 14 App Router exige que tout composant utilisant `useSearchParams()` soit enveloppé dans `<Suspense>`. Sans ce wrapping, Next.js suspend l'hydratation de la page entière et utilise le `loading.tsx` le plus proche pour le streaming — qui était le `loading.tsx` root (skeleton grille de recettes), totalement inadapté à une page auth.
+
+**Règle à retenir** : Chaque fois qu'un Client Component utilise `useSearchParams()`, `usePathname()`, ou tout hook de navigation qui lit les paramètres URL, il DOIT être dans un composant fils enveloppé par `<Suspense>`. L'export default de la page ne doit jamais appeler ces hooks directement — il doit se contenter de rendre `<Suspense fallback={...}><InnerComponent /></Suspense>`.
+
+**Comment l'éviter** :
+- Pattern systématique : `export default function XxxPage() { return <Suspense fallback={<XxxSkeleton />}><XxxForm /></Suspense>; }`
+- `XxxForm` est le composant interne qui contient `useSearchParams()` et toute la logique
+- `XxxSkeleton` doit avoir le même design que le layout parent (fond cream, carte blanche, etc.) — jamais réutiliser le loading.tsx root
+- Toujours créer un `loading.tsx` dans chaque groupe de routes `(auth)`, `(dashboard)`, etc. pour court-circuiter le loading.tsx root inadapté
+- Toujours créer un `error.tsx` dans chaque groupe pour un Error Boundary contextualisé
+
+**Fichiers créés ou modifiés** :
+- `apps/web/src/app/(auth)/login/page.tsx` — `LoginForm` + `LoginSkeleton` + `Suspense` wrapper
+- `apps/web/src/app/(auth)/loading.tsx` — skeleton adapté au layout auth (fond cream, carte blanche)
+- `apps/web/src/app/(auth)/error.tsx` — Error Boundary avec "Réessayer" + "Retour à l'accueil"
+
+## 2026-04-13 — Debug bug critique : plan généré n'apparait jamais à l'écran (react-specialist)
+
+**Erreur commise (Bug 1 — UTC/local mismatch dans getCurrentMonday)** :
+`getCurrentMonday()` utilisait `today.getDay()` (heure locale) pour calculer le décalage, puis `toISOString()` (UTC) pour formater la date. Résultat : en UTC+1/+2, après minuit heure locale (ex : 00h30 lundi), `getDay()` retourne 1 (lundi) mais `toISOString()` retourne la date du dimanche UTC. Le backend enregistre le plan sous `week_start = dimanche UTC`, mais `GET /me/current` cherche le lundi UTC — le plan n'est jamais retrouvé.
+
+**Règle à retenir** : Toute fonction qui calcule une date pour un backend UTC doit utiliser EXCLUSIVEMENT les méthodes UTC : `getUTCDay()`, `setUTCDate()`, `getUTCFullYear()`, `getUTCMonth()`, `getUTCDate()`. Ne jamais mélanger `getDay()` (local) avec `toISOString()` (UTC). Formatter manuellement `YYYY-MM-DD` via `getUTCFullYear/Month/Date` — jamais via `toISOString().split("T")[0]` si le calcul précédent utilise des méthodes locales.
+
+**Comment l'éviter** : Ajouter un test unitaire pour `getCurrentMonday()` simulant l'heure 23h30 UTC (= minuit+heure locale UTC+1) et vérifier que la date retournée est bien le lundi UTC, pas le dimanche.
+
+---
+
+**Erreur commise (Bug 2 — onSuccess ignore la réponse et ne gère que le cas async)** :
+`onSuccess` dans `useGeneratePlan` ignorait `_data` (le corps de la réponse). Si le backend génère le plan de façon synchrone et le retourne directement (PlanDetail complet au lieu de `{ task_id }`), le frontend lance quand même le polling, qui appelle `GET /me/current` — si ce endpoint a un comportement différent, le plan ne revient jamais. Et même si le plan est dans la réponse de la mutation, il est perdu.
+
+**Règle à retenir** : Ne jamais nommer un paramètre `_data` dans `onSuccess` quand la réponse du backend peut contenir la donnée finale. Inspecter toujours `data` pour détecter si le backend est passé en mode synchrone. Pattern : vérifier si `data` contient un `id` (PlanDetail) ou un `task_id` (async) et traiter chaque cas séparément.
+
+---
+
+**Erreur commise (Bug 3 — `void queryClient.invalidateQueries()` avant `startPolling()`)** :
+`invalidateQueries` était fire-and-forget (`void`). `startPolling` était appelé immédiatement après, de façon synchrone. Le premier refetch déclenché par `invalidateQueries` partait avec `refetchInterval: false` (car `isGenerating` était encore `false` dans le rendu courant). Ce refetch "orphelin" pouvait écraser le cache avant que le polling ne soit actif.
+
+**Règle à retenir** : Quand `startPolling` (qui active `refetchInterval`) doit prendre effet AVANT le premier refetch forcé par `invalidateQueries`, enchaîner via `.then()` : `invalidateQueries(...).then(() => startPolling(...))`. Cela garantit que le rendu avec `isGenerating=true` et `refetchInterval=3000` est actif avant que le refetch ne parte.
+
+---
+
+**Règle générale retenue** : `startPolling` exposé depuis `useCurrentPlan` doit être wrappé dans `useCallback` pour éviter des références instables transmises à `useGeneratePlan`. Même si TanStack Query v5 re-lit les options à chaque render, une référence stable évite des re-renders inutiles en cascade dans les composants parents.
+
+## 2026-04-14 — Diagnostic embeddings vides (591 recettes, 0 embedding) (backend-developer)
+
+**Erreur commise (Bug 1 — CRITIQUE) : `embedder.embed()` n'existe pas** :
+La tâche Celery `embed_recipe` dans `tasks.py` appelait `embedder.embed(text_to_embed)` (ligne 290). La méthode correcte est `embed_text()`. Cette erreur provoque un `AttributeError` à chaque exécution de la tâche, attrapé silencieusement par le `try/except Exception` du caller. Résultat : la Celery chain `validate → embed → tag` s'exécute sans crash visible mais n'insère rien dans `recipe_embeddings`.
+
+**Règle à retenir** : Après toute refactorisation de méthode (rename), faire un grep global de l'ancien nom avant de committer. Pattern : `grep -r "embedder\.embed(" apps/worker/src/` pour vérifier qu'aucun appel résiduel subsiste. Les tâches Celery sont particulièrement dangereuses car elles ont des `try/except` larges pour survivre aux erreurs — un `AttributeError` peut passer sous le radar des logs si le caller le swallowe.
+
+**Comment l'éviter** : Typer `RecipeEmbedder` avec Protocol ou Abstract Base Class pour que mypy détecte les appels à des méthodes inexistantes à la compilation. Ajouter un test d'intégration `test_embed_recipe_task` qui vérifie que la tâche insère réellement une ligne dans `recipe_embeddings` (pas seulement qu'elle ne crash pas).
+
+---
+
+**Erreur commise (Bug 2) : `_retrieve_by_quality` faisait un JOIN inutile sur `recipe_embeddings`** :
+Le fallback "nouveaux foyers sans vecteur de goût" utilisait `JOIN recipe_embeddings re` pour filtrer sur `re.total_time_min` et `re.tags`. Comme `recipe_embeddings` est vide, ce fallback retourne 0 résultats → déclenchement du double-fallback `_retrieve_by_quality_no_embedding`. Ce chemin fonctionnait (grâce au double-fallback) mais de façon non intentionnelle et avec un log WARNING alarmant inutilement.
+
+**Règle à retenir** : Un fallback qui ne joint pas une table facultative (embeddings) ne doit pas faire de JOIN sur cette table. `_retrieve_by_quality` est le fallback "sans embeddings" → il doit filtrer uniquement sur `recipes`. Les colonnes `total_time_min` et `tags` existent aussi sur `recipes` — pas besoin du JOIN.
+
+**Comment l'éviter** : Tester le fallback avec une `recipe_embeddings` vide (état initial) dans les tests d'intégration. Un test `test_retrieve_by_quality_empty_embeddings_table` aurait détecté le JOIN inutile immédiatement.
+
+---
+
+**Erreur commise (Bug 3) : `import_sample_recipes.py` n'insère pas les embeddings** :
+Le script de seed des 591 recettes insère dans `recipes` et `recipe_ingredients` mais pas dans `recipe_embeddings`. Les embeddings ne sont générés que par le pipeline Celery (`embed_recipe`). Comme le pipeline avait le Bug 1, aucun embedding n'a jamais été généré.
+
+**Règle à retenir** : Tout script d'import de recettes (sample, Spoonacular, Marmiton) DOIT générer les embeddings si `sentence-transformers[ml]` est installé. Sinon, documenter explicitement que le backfill est requis après l'import. Le script de backfill `backfill_embeddings.py` est maintenant disponible pour corriger l'état actuel.
+
+**Comment l'éviter** : Ajouter une vérification en fin de script : `SELECT COUNT(*) FROM recipes r LEFT JOIN recipe_embeddings re ON re.recipe_id = r.id WHERE re.recipe_id IS NULL` doit retourner 0. Si > 0, warning avec la commande de backfill.
