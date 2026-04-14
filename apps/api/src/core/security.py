@@ -103,6 +103,37 @@ def verify_jwt(token: str, supabase_anon_key: str) -> TokenPayload:
         HTTPException 401 si le token est invalide, expiré, malformé ou si la
         signature ne correspond à aucun secret configuré.
     """
+    # Diagnostic : lire l'en-tête JWT pour connaître l'algorithme réel du token
+    # Supabase GoTrue utilise HS256 par défaut, mais certaines configs peuvent différer
+    ALLOWED_ALGORITHMS = {"HS256", "HS384", "HS512"}
+    try:
+        header = jwt.get_unverified_header(token)
+        token_alg = header.get("alg", "HS256")
+        logger.info(
+            f"jwt_header | alg={token_alg} | typ={header.get('typ')} "
+            f"| kid={header.get('kid', 'none')}"
+        )
+    except Exception as exc:
+        logger.error(f"jwt_header_unreadable | {exc} | token_start={token[:20]}...")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token JWT malformé.",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+    if token_alg not in ALLOWED_ALGORITHMS:
+        logger.error(
+            f"jwt_unsupported_alg | alg={token_alg} | "
+            f"allowed={ALLOWED_ALGORITHMS} | "
+            f"hint=Supabase GoTrue doit utiliser HS256. "
+            f"Vérifiez la config du projet Supabase."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Algorithme JWT non supporté : {token_alg}.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     # Options de décodage : vérification signature + leeway, audience désactivé
     # (Supabase GoTrue peut émettre "aud" dans un format incompatible avec python-jose)
     decode_options = {"verify_aud": False, "leeway": JWT_LEEWAY_SECONDS}
@@ -130,7 +161,7 @@ def verify_jwt(token: str, supabase_anon_key: str) -> TokenPayload:
             payload = jwt.decode(
                 token,
                 secret,
-                algorithms=["HS256"],
+                algorithms=[token_alg],
                 options=decode_options,
             )
             logger.info("jwt_decoded_ok", sub=payload.get("sub"), method=method_name)
@@ -142,7 +173,7 @@ def verify_jwt(token: str, supabase_anon_key: str) -> TokenPayload:
 
     # Toutes les méthodes ont échoué
     logger.error(
-        f"jwt_all_methods_failed | tried={len(secrets_to_try)} | "
+        f"jwt_all_methods_failed | alg={token_alg} | tried={len(secrets_to_try)} | "
         f"has_jwt_secret={bool(jwt_secret)} | errors={errors}"
     )
     raise HTTPException(
