@@ -106,8 +106,11 @@ def verify_jwt(token: str, supabase_anon_key: str) -> TokenPayload:
     # Permet de configurer un secret JWT distinct si le projet Supabase le nécessite.
     jwt_secret = os.getenv("SUPABASE_JWT_SECRET") or supabase_anon_key
 
-    # Options de décodage communes : vérification signature + audience + leeway
-    decode_options = {"verify_aud": True, "leeway": JWT_LEEWAY_SECONDS}
+    # Options de décodage communes : vérification signature + leeway
+    # verify_aud désactivé : Supabase GoTrue peut émettre "aud" comme string,
+    # array, ou l'omettre selon la version — python-jose rejette les formats inattendus.
+    # La signature HS256 reste la protection principale (non négociable).
+    decode_options = {"verify_aud": False, "leeway": JWT_LEEWAY_SECONDS}
 
     # Deux méthodes de décodage : Supabase peut fournir le secret JWT
     # soit en clair, soit encodé en base64 selon la configuration du projet.
@@ -119,7 +122,6 @@ def verify_jwt(token: str, supabase_anon_key: str) -> TokenPayload:
             token,
             jwt_secret,
             algorithms=["HS256"],
-            audience=SUPABASE_JWT_AUDIENCE,
             options=decode_options,
         )
         logger.info("jwt_decoded_ok", sub=payload.get("sub"), method="raw_secret")
@@ -134,7 +136,6 @@ def verify_jwt(token: str, supabase_anon_key: str) -> TokenPayload:
             token,
             decoded_secret,
             algorithms=["HS256"],
-            audience=SUPABASE_JWT_AUDIENCE,
             options=decode_options,
         )
         logger.info("jwt_decoded_ok", sub=payload.get("sub"), method="base64_secret")
