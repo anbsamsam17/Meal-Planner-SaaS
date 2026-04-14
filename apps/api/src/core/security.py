@@ -1,39 +1,38 @@
 """
 Helpers de sécurité JWT pour l'authentification Supabase.
 
-Supabase Auth émet des JWT signés avec la SUPABASE_ANON_KEY (ou JWT_SECRET).
-Chaque token contient le user_id (sub) et des claims custom (household_id, role).
+Supabase Auth (GoTrue) émet des JWT signés. L'algorithme dépend de la
+configuration du projet Supabase :
+- ES256 (ECDSA P-256) : projets récents — vérification via clé publique JWKS
+- HS256 (HMAC-SHA256) : projets legacy — vérification via JWT secret symétrique
+
+Ce module détecte automatiquement l'algorithme du token et utilise la bonne
+stratégie de vérification.
 
 Conventions multi-tenancy :
 - Le user_id est l'identifiant Supabase Auth (UUID)
 - Le household_id est le tenant ID pour l'isolation RLS
 - Les agents IA utilisent le service_role_key (bypass RLS)
-
-Sécurité (FIX critique 2026-04-14) :
-- Vérification de signature OBLIGATOIRE — aucun fallback sans signature
-- verify_aud=True avec audience="authenticated" (standard Supabase GoTrue)
-- SUPABASE_JWT_SECRET utilisé si défini (pour projets avec JWT secret custom)
-- leeway=30s pour tolérance horloge entre serveurs
-- NOTA devops-engineer : ajouter SUPABASE_JWT_SECRET au .env.example si vous
-  souhaitez utiliser un secret JWT distinct de SUPABASE_ANON_KEY.
 """
 
-import base64
-import contextlib
 import os
+import time
 from typing import Any
 
+import httpx
 from fastapi import HTTPException, Request, status
 from jose import jwt
 from loguru import logger
 
-# FIX #9 (review Phase 1 2026-04-12) : audience Supabase standard
-# GoTrue (Supabase Auth) émet toujours "authenticated" dans le claim "aud"
-SUPABASE_JWT_AUDIENCE = "authenticated"
-
-# FIX #9 (review Phase 1 2026-04-12) : tolérance d'horloge entre serveurs (30s)
-# Évite les échecs d'authentification dus à de légères dérives d'horloge
+# Tolérance d'horloge entre serveurs (30s)
 JWT_LEEWAY_SECONDS = 30
+
+# Algorithmes autorisés — HMAC (symétrique) et ECDSA (asymétrique via JWKS)
+ALLOWED_ALGORITHMS = {"HS256", "HS384", "HS512", "ES256", "ES384", "ES512"}
+
+# Cache JWKS en mémoire (TTL 5 min) — évite un appel HTTP par requête
+_jwks_cache: dict[str, Any] = {}
+_JWKS_CACHE_TTL = 300
 
 
 class TokenPayload:
@@ -76,45 +75,99 @@ class TokenPayload:
         return self._raw.get("email")
 
 
+def _fetch_jwks(supabase_url: str) -> list[dict[str, Any]]:
+    """Récupère les clés publiques JWKS depuis Supabase, avec cache TTL 5 min."""
+    now = time.monotonic()
+    cached = _jwks_cache.get(supabase_url)
+    if cached and (now - cached["ts"]) < _JWKS_CACHE_TTL:
+        return cached["keys"]
+
+    jwks_url = f"{supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+    logger.info(f"jwks_fetch | url={jwks_url}")
+    resp = httpx.get(jwks_url, timeout=5)
+    resp.raise_for_status()
+    keys = resp.json().get("keys", [])
+    _jwks_cache[supabase_url] = {"keys": keys, "ts": now}
+    logger.info(f"jwks_cached | keys_count={len(keys)}")
+    return keys
+
+
+def _verify_es256(token: str, header: dict[str, Any], decode_options: dict) -> TokenPayload:
+    """Vérifie un JWT signé ES256 via la clé publique JWKS de Supabase."""
+    supabase_url = os.getenv("SUPABASE_URL", "")
+    if not supabase_url:
+        logger.error("jwks_no_supabase_url | SUPABASE_URL non configuré")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Configuration serveur incomplète (SUPABASE_URL manquant).",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    keys = _fetch_jwks(supabase_url)
+    kid = header.get("kid")
+    token_alg = header.get("alg", "ES256")
+
+    # Trouver la clé publique correspondant au kid du token
+    matching_key = None
+    for key in keys:
+        if key.get("kid") == kid:
+            matching_key = key
+            break
+
+    if not matching_key:
+        # kid inconnu — invalider le cache et réessayer (rotation de clé possible)
+        _jwks_cache.pop(supabase_url, None)
+        keys = _fetch_jwks(supabase_url)
+        for key in keys:
+            if key.get("kid") == kid:
+                matching_key = key
+                break
+
+    if not matching_key:
+        logger.error(f"jwks_kid_not_found | kid={kid} | available={[k.get('kid') for k in keys]}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Clé publique introuvable pour ce token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    payload = jwt.decode(
+        token,
+        matching_key,
+        algorithms=[token_alg],
+        options=decode_options,
+    )
+    logger.info("jwt_decoded_ok", sub=payload.get("sub"), method="jwks_es256")
+    return TokenPayload(payload)
+
+
 def verify_jwt(token: str, supabase_anon_key: str) -> TokenPayload:
     """
     Vérifie la signature d'un JWT Supabase et retourne le payload décodé.
 
-    Stratégie de vérification (2 méthodes, toutes avec signature vérifiée) :
-    1. Secret brut tel que fourni (SUPABASE_JWT_SECRET ou SUPABASE_ANON_KEY)
-    2. Secret décodé en base64 (certains projets Supabase encodent le secret)
-
-    Sécurité :
-    - verify_aud=True avec audience="authenticated" (standard GoTrue)
-    - Vérification de signature obligatoire sur toutes les méthodes (pas de fallback)
-    - leeway=30s pour tolérance horloge entre serveurs
-    - Algorithme HS256 uniquement (défaut Supabase). Si RS256 est activé sur
-      un projet Supabase Pro, ajouter la logique JWKS endpoint.
+    Détecte automatiquement l'algorithme du token :
+    - ES256/ES384/ES512 (asymétrique) : vérifie via JWKS public key de Supabase
+    - HS256/HS384/HS512 (symétrique) : vérifie via SUPABASE_JWT_SECRET ou anon key
 
     Args:
         token: Le JWT Bearer extrait du header Authorization.
-        supabase_anon_key: La clé anon Supabase (sert de secret si SUPABASE_JWT_SECRET
-            n'est pas défini dans l'environnement).
+        supabase_anon_key: La clé anon Supabase (fallback pour HS* uniquement).
 
     Returns:
         TokenPayload avec user_id, household_id, role.
 
     Raises:
-        HTTPException 401 si le token est invalide, expiré, malformé ou si la
-        signature ne correspond à aucun secret configuré.
+        HTTPException 401 si le token est invalide, expiré, ou signature incorrecte.
     """
-    # Diagnostic : lire l'en-tête JWT pour connaître l'algorithme réel du token
-    # Supabase GoTrue utilise HS256 par défaut, mais certaines configs peuvent différer
-    ALLOWED_ALGORITHMS = {"HS256", "HS384", "HS512"}
+    decode_options = {"verify_aud": False, "leeway": JWT_LEEWAY_SECONDS}
+
+    # Lire l'en-tête JWT pour détecter l'algorithme
     try:
         header = jwt.get_unverified_header(token)
         token_alg = header.get("alg", "HS256")
-        logger.info(
-            f"jwt_header | alg={token_alg} | typ={header.get('typ')} "
-            f"| kid={header.get('kid', 'none')}"
-        )
+        logger.info(f"jwt_header | alg={token_alg} | kid={header.get('kid', 'none')}")
     except Exception as exc:
-        logger.error(f"jwt_header_unreadable | {exc} | token_start={token[:20]}...")
+        logger.error(f"jwt_header_unreadable | {exc}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token JWT malformé.",
@@ -122,47 +175,32 @@ def verify_jwt(token: str, supabase_anon_key: str) -> TokenPayload:
         ) from exc
 
     if token_alg not in ALLOWED_ALGORITHMS:
-        logger.error(
-            f"jwt_unsupported_alg | alg={token_alg} | "
-            f"allowed={ALLOWED_ALGORITHMS} | "
-            f"hint=Supabase GoTrue doit utiliser HS256. "
-            f"Vérifiez la config du projet Supabase."
-        )
+        logger.error(f"jwt_unsupported_alg | alg={token_alg}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Algorithme JWT non supporté : {token_alg}.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Options de décodage : vérification signature + leeway, audience désactivé
-    # (Supabase GoTrue peut émettre "aud" dans un format incompatible avec python-jose)
-    decode_options = {"verify_aud": False, "leeway": JWT_LEEWAY_SECONDS}
+    # ES256/ES384/ES512 → vérification asymétrique via JWKS
+    if token_alg.startswith("ES"):
+        return _verify_es256(token, header, decode_options)
 
-    # Secrets à essayer dans l'ordre de priorité :
-    # 1. SUPABASE_JWT_SECRET (legacy JWT secret du dashboard Supabase)
-    # 2. SUPABASE_ANON_KEY (certains projets signent avec la anon key)
-    # 3. Base64-décodé du JWT_SECRET (format alternatif Supabase)
+    # HS256/HS384/HS512 → vérification symétrique via secret
     jwt_secret = os.getenv("SUPABASE_JWT_SECRET")
     secrets_to_try: list[tuple[str, str]] = []
     if jwt_secret:
         secrets_to_try.append((jwt_secret, "jwt_secret"))
     if supabase_anon_key and supabase_anon_key != jwt_secret:
         secrets_to_try.append((supabase_anon_key, "anon_key"))
-    if jwt_secret:
-        with contextlib.suppress(Exception):
-            secrets_to_try.append((base64.b64decode(jwt_secret).decode(), "jwt_secret_b64"))
     if not jwt_secret:
         secrets_to_try.append((supabase_anon_key, "anon_key"))
 
     errors: list[str] = []
-
     for secret, method_name in secrets_to_try:
         try:
             payload = jwt.decode(
-                token,
-                secret,
-                algorithms=[token_alg],
-                options=decode_options,
+                token, secret, algorithms=[token_alg], options=decode_options,
             )
             logger.info("jwt_decoded_ok", sub=payload.get("sub"), method=method_name)
             return TokenPayload(payload)
@@ -171,11 +209,7 @@ def verify_jwt(token: str, supabase_anon_key: str) -> TokenPayload:
             errors.append(error_msg)
             logger.warning(f"jwt_method_failed | {error_msg}")
 
-    # Toutes les méthodes ont échoué
-    logger.error(
-        f"jwt_all_methods_failed | alg={token_alg} | tried={len(secrets_to_try)} | "
-        f"has_jwt_secret={bool(jwt_secret)} | errors={errors}"
-    )
+    logger.error(f"jwt_all_methods_failed | alg={token_alg} | errors={errors}")
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Token JWT invalide.",
