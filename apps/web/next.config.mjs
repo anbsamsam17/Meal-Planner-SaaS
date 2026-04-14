@@ -27,19 +27,13 @@ const securityHeaders = [
       //   nonce dynamique (via next.config.js experimental.sri ou middleware)
       //   casse l'hydration côté client → page blanche.
       //
-      // MITIGATION en production : ajout de 'strict-dynamic'.
-      //   - 'strict-dynamic' indique au navigateur de ne faire confiance qu'aux
-      //     scripts chargés par un script déjà de confiance (chain of trust).
-      //   - En combinaison avec 'unsafe-inline', les navigateurs modernes (Chrome 76+,
-      //     Firefox 68+, Safari 15.4+) ignorent 'unsafe-inline' quand 'strict-dynamic'
-      //     est présent (CSP3 spec), ce qui bloque les injections XSS inline classiques.
-      //   - Les navigateurs legacy qui ignorent 'strict-dynamic' tombent sur
-      //     'unsafe-inline' comme fallback — pas de regression.
+      // REVERT 2026-04-15 : 'strict-dynamic' supprimé — incompatible avec Next.js 14.
+      //   'strict-dynamic' annule 'unsafe-inline' dans les navigateurs modernes (CSP3),
+      //   ce qui bloque les scripts inline d'hydration Next.js → page blanche en prod.
       //
-      // Phase 3 : migrer vers des nonces dynamiques via un middleware Next.js
-      //   (experimental.sri ou headers() dans middleware.ts) pour éliminer
-      //   complètement 'unsafe-inline' du script-src.
-      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : " 'strict-dynamic'"} https://*.posthog.com`,
+      // TODO Phase 3 : migrer vers des nonces dynamiques via middleware Next.js
+      //   pour éliminer 'unsafe-inline' sans casser l'hydration.
+      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://*.posthog.com`,
       // style-src 'unsafe-inline' : requis par Next.js et Tailwind CSS pour les styles inline.
       // Le retirer casserait le rendu (styled-jsx, className inline). Risque XSS style-based
       // est faible comparé à script-based. Conservé intentionnellement.
