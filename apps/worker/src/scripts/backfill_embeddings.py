@@ -163,7 +163,7 @@ async def _insert_embedding(
             INSERT INTO recipe_embeddings (
                 recipe_id, embedding, tags, total_time_min, cuisine_type
             ) VALUES (
-                :recipe_id, :embedding::vector, :tags, :total_time_min, :cuisine_type
+                :recipe_id, CAST(:embedding AS vector), CAST(:tags AS text[]), :total_time_min, :cuisine_type
             )
             ON CONFLICT (recipe_id) DO UPDATE SET
                 embedding = EXCLUDED.embedding,

@@ -428,7 +428,7 @@ def extract_jsonld_recipe(html: str) -> dict[str, Any] | None:
 
     for script in scripts:
         try:
-            data = json.loads(script.string or "")
+            data = json.loads(script.string or "", strict=False)
         except (json.JSONDecodeError, TypeError):
             continue
 
@@ -964,9 +964,9 @@ async def discover_urls_from_sitemap(
 def _is_recipe_url(url: str) -> bool:
     """Heuristique pour detecter si une URL est une page de recette individuelle."""
     url_lower = url.lower()
-    # 750g : les recettes ont un format type /poulet-roti_12345.htm
+    # 750g : les recettes ont un format type /cassoulet-r98605.htm
     if "750g.com" in url_lower:
-        return bool(re.search(r"_\d+\.htm", url_lower))
+        return bool(re.search(r"-r\d+\.htm", url_lower))
     # Allrecipes : /recipe/12345/
     if "allrecipes.com" in url_lower:
         return "/recipe/" in url_lower or "/recette/" in url_lower
@@ -1226,7 +1226,7 @@ async def _insert_recipe_with_ingredients(
     nutrition_json = (
         json.dumps(recipe_data["nutrition"], ensure_ascii=False)
         if recipe_data.get("nutrition")
-        else None
+        else "{}"
     )
 
     await session.execute(

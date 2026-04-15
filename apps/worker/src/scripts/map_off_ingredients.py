@@ -598,6 +598,7 @@ async def run_mapping(
                             status_code=exc.response.status_code,
                         )
                         stats["failures"] += 1
+                        await asyncio.sleep(off_delay * 2)
                         continue
                     except (httpx.ConnectError, httpx.TimeoutException) as exc:
                         logger.error(
@@ -606,6 +607,7 @@ async def run_mapping(
                             error=str(exc),
                         )
                         stats["failures"] += 1
+                        await asyncio.sleep(off_delay * 2)
                         continue
                     except Exception as exc:
                         logger.error(
@@ -614,6 +616,7 @@ async def run_mapping(
                             error=str(exc),
                         )
                         stats["failures"] += 1
+                        await asyncio.sleep(off_delay)
                         continue
 
                     # Sélection du meilleur candidat
