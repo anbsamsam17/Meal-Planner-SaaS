@@ -26,7 +26,7 @@ import { toast } from "sonner";
 export const PLAN_QUERY_KEYS = {
   current: ["plans", "current"] as const,
   byId: (id: string) => ["plans", id] as const,
-  suggestions: (planId: string, filters?: { style?: string; max_time?: number }) =>
+  suggestions: (planId: string, filters?: { style?: string; max_time?: number; q?: string }) =>
     ["plans", planId, "suggestions", filters] as const,
 };
 
@@ -165,10 +165,10 @@ export function useAddMeal(planId: string) {
 }
 
 // Query — Suggestions de recettes pour swap/ajout
-// GET /api/v1/plans/{plan_id}/suggestions?style=...&max_time=...
+// GET /api/v1/plans/{plan_id}/suggestions?style=...&max_time=...&q=...
 export function useRecipeSuggestions(
   planId: string,
-  filters?: { style?: string; max_time?: number },
+  filters?: { style?: string; max_time?: number; q?: string },
   enabled = true,
 ) {
   return useQuery<Recipe[], Error>({

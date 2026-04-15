@@ -5,7 +5,7 @@
 // Clic sur suggestion → callback parent avec recipe_id
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X, Loader2 } from "lucide-react";
 import Image from "next/image";
@@ -38,9 +38,9 @@ interface FilterOption {
 
 const FILTER_OPTIONS: FilterOption[] = [
   { label: "Rapide", maxTime: 20 },
-  { label: "Proteine", style: "proteine" },
-  { label: "Vegetarien", style: "vegetarien" },
-  { label: "Leger", style: "leger" },
+  { label: "Protéiné", style: "protéiné" },
+  { label: "Végétarien", style: "végétarien" },
+  { label: "Léger", style: "léger" },
 ];
 
 // --- Mini recipe card ---
@@ -113,12 +113,26 @@ export function SwapSuggestionsPanel({
   isSubmitting = false,
 }: SwapSuggestionsPanelProps) {
   const [activeFilter, setActiveFilter] = useState<FilterOption | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchQuery]);
 
   const { data: suggestions = [], isLoading } = useRecipeSuggestions(
     planId,
     {
       style: activeFilter?.style,
       max_time: activeFilter?.maxTime,
+      q: debouncedQuery || undefined,
     },
     open, // enabled seulement quand le panel est ouvert
   );
@@ -166,8 +180,19 @@ export function SwapSuggestionsPanel({
               </Dialog.Close>
             </div>
 
+            {/* Champ de recherche */}
+            <div className="mt-3">
+              <input
+                type="text"
+                placeholder="Rechercher une recette ou une cuisine..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 placeholder:text-neutral-400 focus:border-[#E2725B] focus:outline-none focus:ring-1 focus:ring-[#E2725B]"
+              />
+            </div>
+
             {/* Filter pills */}
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               {FILTER_OPTIONS.map((filter) => {
                 const isActive =
                   activeFilter?.label === filter.label;

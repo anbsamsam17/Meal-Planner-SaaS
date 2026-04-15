@@ -221,11 +221,12 @@ export async function generatePlan(params?: GeneratePlanParams): Promise<Generat
 // Suggestions de recettes pour le swap/ajout — GET /api/v1/plans/{plan_id}/suggestions
 export async function getRecipeSuggestions(
   planId: string,
-  filters?: { style?: string; max_time?: number },
+  filters?: { style?: string; max_time?: number; q?: string },
 ): Promise<Recipe[]> {
   const params = new URLSearchParams();
   if (filters?.style) params.set("style", filters.style);
   if (filters?.max_time) params.set("max_time", String(filters.max_time));
+  if (filters?.q) params.set("q", filters.q);
   const qs = params.toString();
   const raw = await apiClient.get<Record<string, unknown>[]>(
     `/api/v1/plans/${planId}/suggestions${qs ? `?${qs}` : ""}`,

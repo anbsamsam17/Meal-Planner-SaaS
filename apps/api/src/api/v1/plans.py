@@ -51,6 +51,18 @@ from src.core.rate_limit import (
 )
 from src.core.security import TokenPayload, get_current_user
 
+# Mapping des styles envoyés par le frontend (avec ou sans accents) vers la forme canonique.
+_STYLE_NORMALIZE: dict[str, str] = {
+    "vegetarien": "végétarien",
+    "végétarien": "végétarien",
+    "leger": "léger",
+    "léger": "léger",
+    "proteine": "protéiné",
+    "protéiné": "protéiné",
+    "gourmand": "gourmand",
+    "rapide": "rapide",
+}
+
 router = APIRouter(prefix="/plans", tags=["plans"])
 
 
@@ -211,13 +223,16 @@ async def generate_plan(
             conditions.append(":budget = ANY(tags)")
             params["budget"] = effective_budget
 
-        if body.style == "végétarien":
+        normalized_style = _STYLE_NORMALIZE.get(body.style, body.style) if body.style else None
+        if normalized_style == "végétarien":
             conditions.append("'végétarien' = ANY(tags)")
-        elif body.style == "protéiné":
+        elif normalized_style == "protéiné":
             conditions.append("NOT ('végétarien' = ANY(tags))")
             conditions.append("NOT ('vegan' = ANY(tags))")
-        elif body.style == "léger":
+        elif normalized_style == "léger":
             conditions.append("difficulty <= 2")
+        elif normalized_style == "gourmand":
+            conditions.append("difficulty >= 3")
 
         where = " AND ".join(conditions)
 
@@ -1149,6 +1164,7 @@ async def get_recipe_suggestions(
     plan_id: UUID,
     style: str | None = None,
     max_time: int | None = None,
+    q: str | None = Query(default=None, max_length=200, description="Recherche par nom de recette ou cuisine."),
     session: AsyncSession = Depends(get_db),
     user: TokenPayload = Depends(get_current_user_dep),
 ) -> Any:
@@ -1209,15 +1225,22 @@ async def get_recipe_suggestions(
         conditions.append("total_time_min <= :max_time")
         params["max_time"] = max_time
 
-    if style == "végétarien":
+    normalized_style = _STYLE_NORMALIZE.get(style, style) if style else None
+    if normalized_style == "végétarien":
         conditions.append("'végétarien' = ANY(tags)")
-    elif style == "protéiné":
+    elif normalized_style == "protéiné":
         conditions.append("NOT ('végétarien' = ANY(tags))")
         conditions.append("NOT ('vegan' = ANY(tags))")
-    elif style == "léger":
+    elif normalized_style == "léger":
         conditions.append("difficulty <= 2")
-    elif style == "rapide":
+    elif normalized_style == "rapide":
         conditions.append("total_time_min <= 30")
+    elif normalized_style == "gourmand":
+        conditions.append("difficulty >= 3")
+
+    if q:
+        conditions.append("(title ILIKE :query OR cuisine_type ILIKE :query)")
+        params["query"] = f"%{q}%"
 
     where = " AND ".join(conditions)
 
@@ -1268,6 +1291,7 @@ RAYON_MAP = {
 # Ce dictionnaire mappe le nom canonique de l'ingredient vers un rayon reel.
 INGREDIENT_RAYON_KEYWORDS: dict[str, list[str]] = {
     "Fruits & legumes": [
+        # English (TheMealDB)
         "potato", "carrot", "onion", "garlic", "tomato", "pepper", "lettuce",
         "cucumber", "spinach", "broccoli", "mushroom", "celery", "ginger",
         "lemon", "lime", "avocado", "bean", "pea", "corn", "zucchini",
@@ -1276,35 +1300,76 @@ INGREDIENT_RAYON_KEYWORDS: dict[str, list[str]] = {
         "squash", "sweet potato", "apple", "banana", "orange", "pear",
         "strawberr", "blueberr", "raspberr", "grape", "melon", "mango",
         "pineapple", "peach", "plum", "cherry", "kiwi", "pomegranate",
+        # Francais (ingredients traduits)
+        "carotte", "tomate", "oignon", "ail", "poireau", "poivron", "laitue",
+        "concombre", "épinard", "brocoli", "champignon", "céleri", "gingembre",
+        "citron", "avocat", "haricot", "pois", "maïs", "courgette", "aubergine",
+        "chou", "échalote", "radis", "navet", "betterave", "asperge", "artichaut",
+        "courge", "pomme de terre", "patate", "fenouil", "endive", "mâche",
+        "roquette", "cresson", "pomme", "banane", "orange", "poire", "fraise",
+        "framboise", "raisin", "melon", "mangue", "ananas", "pêche", "prune",
+        "cerise", "kiwi", "abricot",
     ],
     "Boucherie": [
+        # English (TheMealDB)
         "chicken", "beef", "pork", "lamb", "turkey", "bacon", "sausage",
         "mince", "steak", "veal", "duck", "ham", "chorizo", "salami",
         "prosciutto", "pancetta",
+        # Francais
+        "poulet", "bœuf", "boeuf", "porc", "agneau", "dinde", "canard",
+        "jambon", "lardons", "chorizo", "saucisse", "steak", "veau", "lapin",
+        "merguez", "andouillette", "boudin", "chipolata", "escalope",
+        "filet mignon", "gigot", "côte", "entrecôte", "tournedos", "rôti",
     ],
     "Poissonnerie": [
+        # English (TheMealDB)
         "salmon", "tuna", "shrimp", "prawn", "cod", "fish", "anchov",
         "crab", "lobster", "mussel", "clam", "oyster", "squid", "octopus",
         "sardine", "mackerel", "trout", "sea bass", "haddock",
+        # Francais
+        "saumon", "thon", "crevette", "moule", "cabillaud", "sardine", "truite",
+        "lotte", "bar", "dorade", "sole", "lieu", "colin", "anchois", "calmar",
+        "poulpe", "huître", "homard", "crabe", "gambas", "langoustine",
+        "coquille saint-jacques",
     ],
     "Cremerie": [
+        # English (TheMealDB)
         "milk", "cream", "cheese", "butter", "yogurt", "yoghurt", "egg",
         "creme fraiche", "mascarpone", "ricotta", "mozzarella", "parmesan",
         "feta", "brie", "camembert", "gouda", "cheddar", "gruyere",
+        # Francais
+        "lait", "crème", "fromage", "beurre", "yaourt", "oeuf", "œuf",
+        "mascarpone", "ricotta", "mozzarella", "parmesan", "feta", "brie",
+        "camembert", "gruyère", "comté", "emmental", "roquefort", "chèvre",
+        "crème fraîche", "faisselle", "petit-suisse",
     ],
     "Epicerie": [
+        # English (TheMealDB)
         "flour", "sugar", "rice", "pasta", "noodle", "bread", "oil",
         "vinegar", "soy sauce", "stock", "broth", "honey", "syrup",
         "baking", "yeast", "cocoa", "chocolate", "coconut milk", "lentil",
         "chickpea", "couscous", "polenta", "semolina", "cornflour",
         "breadcrumb", "panko", "tortilla", "wrap",
+        # Francais
+        "farine", "sucre", "riz", "pâtes", "nouilles", "pain", "huile",
+        "vinaigre", "miel", "sirop", "levure", "cacao", "chocolat",
+        "lait de coco", "lentille", "pois chiche", "couscous", "semoule",
+        "maïzena", "chapelure", "tortilla", "pâte feuilletée", "pâte brisée",
+        "pâte sablée", "fond de veau", "bouillon",
     ],
     "Epices": [
+        # English (TheMealDB)
         "salt", "cumin", "paprika", "cinnamon", "oregano", "basil",
         "thyme", "rosemary", "parsley", "chili", "chilli", "curry",
         "turmeric", "nutmeg", "clove", "cardamom", "coriander", "dill",
         "bay leaf", "saffron", "vanilla", "mint", "tarragon", "sage",
         "fennel seed", "mustard seed", "star anise", "allspice",
+        # Francais
+        "sel", "poivre", "cumin", "paprika", "cannelle", "origan", "basilic",
+        "thym", "romarin", "persil", "piment", "curry", "curcuma", "muscade",
+        "clou de girofle", "cardamome", "coriandre", "aneth", "laurier",
+        "safran", "vanille", "menthe", "estragon", "sauge",
+        "herbes de provence", "ciboulette", "cerfeuil",
     ],
 }
 
