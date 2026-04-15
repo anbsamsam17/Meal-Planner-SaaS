@@ -622,6 +622,90 @@ def import_from_spoonacular_task(
 
 
 @celery_app.task(
+    name="src.agents.recipe_scout.tasks.import_recipe_from_url_task",
+    queue="scraping",
+    bind=True,
+    max_retries=2,
+    default_retry_delay=30,
+    soft_time_limit=60,
+    time_limit=90,
+)
+def import_recipe_from_url_task(
+    self,
+    url: str,
+    household_id: str,
+    user_id: str,
+) -> dict[str, Any]:
+    """Importe une recette depuis une URL fournie par l'utilisateur.
+
+    Pipeline : fetch page → JSON-LD / fallback HTML → insert DB → embed.
+    Chaine automatiquement vers embed_recipe apres insertion.
+
+    Args:
+        url: URL de la page contenant la recette.
+        household_id: UUID du foyer.
+        user_id: UUID Supabase de l'utilisateur.
+
+    Returns:
+        Dict avec recipe_id, title, status.
+    """
+    logger.info(
+        "task_import_url_start",
+        url=url,
+        household_id=household_id,
+        task_id=self.request.id,
+    )
+
+    async def _run() -> dict[str, Any]:
+        from mealplanner_db.session import AsyncSessionLocal
+
+        from src.agents.recipe_scout.url_importer import import_recipe_from_url
+
+        result = await import_recipe_from_url(
+            url=url,
+            household_id=household_id,
+            user_id=user_id,
+            session_factory=AsyncSessionLocal,
+        )
+        return result
+
+    try:
+        result = asyncio.run(_run())
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(_run())
+        finally:
+            loop.close()
+    except Exception as exc:
+        logger.error(
+            "task_import_url_error",
+            url=url,
+            error=str(exc),
+            task_id=self.request.id,
+        )
+        raise self.retry(exc=exc) from exc
+
+    # Chainer vers embed_recipe pour calculer l'embedding vectoriel
+    recipe_id = result.get("recipe_id")
+    if recipe_id:
+        try:
+            embed_recipe.delay(recipe_id)
+            logger.info("task_import_url_embed_chained", recipe_id=recipe_id)
+        except Exception as exc:
+            logger.warning("task_import_url_embed_chain_error", error=str(exc))
+
+    logger.info(
+        "task_import_url_complete",
+        task_id=self.request.id,
+        **result,
+    )
+
+    return {"status": "completed", **result}
+
+
+@celery_app.task(
     name="src.agents.recipe_scout.tasks.run_recipe_scout_nightly",
     queue="default",
     bind=True,

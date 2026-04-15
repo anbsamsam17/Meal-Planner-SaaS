@@ -14,7 +14,7 @@ Sécurité :
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from loguru import logger
 from pydantic import BaseModel, Field
 
@@ -29,9 +29,11 @@ from src.core.cache import (
     cache_response,
     pydantic_to_cache,
 )
-from src.core.rate_limit import (  # noqa: F401 — documenté intentionnellement
+from src.core.rate_limit import (
+    LIMIT_IMPORT_URL_USER,
     LIMIT_USER_READ,
     get_user_key,
+    limiter,
 )
 
 router = APIRouter(prefix="/recipes", tags=["recipes"])
@@ -449,9 +451,136 @@ async def search_recipes(
 
 
 # -------------------------------------------------------------------------
+# POST /import-url — Import d'une recette depuis une URL externe
+# Déclarée AVANT /{recipe_id} pour éviter le conflit de route FastAPI.
+# -------------------------------------------------------------------------
+
+
+class ImportUrlRequest(BaseModel):
+    """Body de la requête POST /import-url."""
+
+    url: str = Field(
+        ...,
+        description="URL de la page web contenant la recette à importer.",
+        min_length=10,
+        max_length=2000,
+    )
+
+
+class ImportUrlResponse(BaseModel):
+    """Réponse de la requête POST /import-url."""
+
+    task_id: str
+    status: str = "queued"
+    message: str = "Import en cours — la recette sera disponible sous ~30 secondes."
+
+
+def _get_current_user_dep(request: Request):
+    """Dépendance auth JWT pour les endpoints protégés du module recipes."""
+    from src.core.config import get_settings
+    from src.core.security import get_current_user
+
+    settings = get_settings()
+    return get_current_user(request, settings.SUPABASE_ANON_KEY)
+
+
+async def _get_household_id(request: Request, user_id: str) -> str:
+    """Récupère le household_id de l'utilisateur connecté."""
+    from sqlalchemy import text
+
+    db_session = getattr(request.app.state, "db_session_factory", None)
+    if db_session is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Base de données non disponible.",
+        )
+    async with db_session() as session:
+        result = await session.execute(
+            text(
+                """
+                SELECT household_id
+                FROM household_members
+                WHERE supabase_user_id = :user_id
+                LIMIT 1
+                """
+            ),
+            {"user_id": user_id},
+        )
+        row = result.fetchone()
+
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vous n'appartenez à aucun foyer. Créez-en un via POST /api/v1/households.",
+        )
+    return str(row[0])
+
+
+@router.post(
+    "/import-url",
+    summary="Importer une recette depuis une URL",
+    description=(
+        "Soumet une URL de recette pour import asynchrone. "
+        "La page est scrapée (JSON-LD schema.org ou fallback HTML), "
+        "la recette est insérée en base et un embedding est calculé. "
+        f"Rate limit : {LIMIT_IMPORT_URL_USER} par utilisateur."
+    ),
+    response_model=ImportUrlResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {"description": "Authentification requise."},
+        status.HTTP_422_UNPROCESSABLE_ENTITY: {"description": "URL invalide."},
+        429: {"description": "Rate limit dépassé — max 10 imports/heure."},
+    },
+)
+@limiter.limit(LIMIT_IMPORT_URL_USER, key_func=get_user_key)
+async def import_recipe_from_url(
+    request: Request,
+    body: ImportUrlRequest,
+    user=Depends(_get_current_user_dep),
+) -> ImportUrlResponse:
+    """Déclenche l'import asynchrone d'une recette depuis une URL."""
+    from urllib.parse import urlparse
+
+    # Validation URL basique
+    parsed = urlparse(body.url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="URL invalide. Format attendu : https://example.com/recette",
+        )
+
+    # Récupérer le household_id
+    household_id = await _get_household_id(request, user.user_id)
+
+    # Dispatch Celery task
+    from src.agents.recipe_scout.tasks import import_recipe_from_url_task
+
+    task = import_recipe_from_url_task.delay(
+        url=body.url,
+        household_id=household_id,
+        user_id=user.user_id,
+    )
+
+    logger.info(
+        "import_url_dispatched",
+        url=body.url,
+        task_id=task.id,
+        user_id=user.user_id,
+        household_id=household_id,
+    )
+
+    return ImportUrlResponse(
+        task_id=task.id,
+        status="queued",
+        message="Import en cours — la recette sera disponible sous ~30 secondes.",
+    )
+
+
+# -------------------------------------------------------------------------
 # BUG P0 FIX (2026-04-14) — Route /{recipe_id} déclarée APRÈS les routes statiques
 # pour éviter que FastAPI mappe "search" comme UUID → 422.
-# Ordre correct : /random → "" (search) → /{recipe_id}
+# Ordre correct : /random → "" (search) → /import-url → /{recipe_id}
 # -------------------------------------------------------------------------
 
 

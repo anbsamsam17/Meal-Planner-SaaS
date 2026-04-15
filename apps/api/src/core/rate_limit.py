@@ -214,5 +214,8 @@ LIMIT_LLM_PDF_USER = "5/hour"
 LIMIT_LLM_PLAN_TENANT = "50/hour"
 LIMIT_LLM_RECIPE_TENANT = "100/hour"
 
+# Niveau 4 — Import URL (par user)
+LIMIT_IMPORT_URL_USER = "10/hour"
+
 # Niveau 5 — Webhooks
 LIMIT_WEBHOOK = "120/minute"

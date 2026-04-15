@@ -276,6 +276,14 @@ export interface RecipeFilters {
   per_page?: number;
 }
 
+// --- Import recette depuis URL ---
+
+export interface ImportUrlResponse {
+  task_id: string;
+  status: "queued" | "completed" | "error";
+  message: string;
+}
+
 // --- Types utilitaires ---
 
 export type DietaryTag =

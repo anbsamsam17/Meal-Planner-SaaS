@@ -6,13 +6,14 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal, Link2 } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { searchRecipesAdvanced } from "@/lib/api/endpoints";
 import type { RecipeFilters, PaginatedResponse } from "@/lib/api/types";
 import type { Recipe } from "@/lib/api/types";
 import { RecipeCard } from "@/components/recipe/recipe-card";
 import { RecipeFiltersPanel } from "@/components/recipe/recipe-filters";
+import { ImportUrlModal } from "@/components/recipe/import-url-modal";
 
 const PER_PAGE = 24;
 const DEFAULT_FILTERS: RecipeFilters = { per_page: PER_PAGE };
@@ -103,6 +104,7 @@ export function RecipesExplorer() {
   const [filters, setFilters] = useState<RecipeFilters>(DEFAULT_FILTERS);
   const [activeQuickFilter, setActiveQuickFilter] = useState<QuickFilterKey | null>(null);
   const [page, setPage] = useState(1);
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   const debouncedQuery = useDebounce(searchQuery, 350);
 
@@ -179,14 +181,30 @@ export function RecipesExplorer() {
       {/* =========================================
           HEADER PREMIUM
       ========================================= */}
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#E2725B]">
-        Découvrez de nouvelles saveurs
-      </p>
-      <h1 className="mt-2 font-serif text-3xl font-bold leading-tight text-[#201a19] md:text-4xl">
-        Explorez +50&nbsp;000
-        <br />
-        recettes de chef
-      </h1>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#E2725B]">
+            Découvrez de nouvelles saveurs
+          </p>
+          <h1 className="mt-2 font-serif text-3xl font-bold leading-tight text-[#201a19] md:text-4xl">
+            Explorez +50&nbsp;000
+            <br />
+            recettes de chef
+          </h1>
+        </div>
+        <button
+          type="button"
+          onClick={() => setImportModalOpen(true)}
+          className="mt-2 flex shrink-0 items-center gap-2 rounded-xl border border-[#E2725B]/30
+            bg-white px-4 py-2.5 text-sm font-medium text-[#E2725B]
+            transition-all hover:bg-[#E2725B]/5 hover:border-[#E2725B]/50
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2725B]/30"
+        >
+          <Link2 className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden sm:inline">Importer une recette</span>
+          <span className="sm:hidden">Importer</span>
+        </button>
+      </div>
 
       {/* =========================================
           BARRE DE RECHERCHE
@@ -324,6 +342,12 @@ export function RecipesExplorer() {
           )}
         </div>
       </div>
+
+      {/* Modal import URL */}
+      <ImportUrlModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+      />
     </div>
   );
 }

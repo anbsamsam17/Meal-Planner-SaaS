@@ -21,6 +21,7 @@ import type {
   BookGenerateResponse,
   RecipeFilters,
   PaginatedResponse,
+  ImportUrlResponse,
 } from "./types";
 
 // --- Types de requête/réponse alignés sur les contrats API Phase 1 ---
@@ -488,6 +489,11 @@ export async function searchRecipesAdvanced(
     per_page: raw.per_page ?? filters.per_page ?? 24,
     has_next: raw.has_next ?? false,
   } satisfies PaginatedResponse<Recipe>;
+}
+
+// Import recette depuis URL — POST /api/v1/recipes/import-url
+export async function importRecipeFromUrl(url: string): Promise<ImportUrlResponse> {
+  return apiClient.post<ImportUrlResponse>("/api/v1/recipes/import-url", { url });
 }
 
 // --- Endpoints Feedbacks ---
