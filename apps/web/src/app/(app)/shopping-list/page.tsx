@@ -7,8 +7,11 @@
 import { useSearchParams } from "next/navigation";
 import { ShoppingCart, Truck, Loader2 } from "lucide-react";
 import { useShoppingList, useToggleItem } from "@/hooks/use-shopping-list";
+import { useShoppingListRealtime } from "@/hooks/use-shopping-list-realtime";
+import { useShoppingPresence } from "@/hooks/use-shopping-presence";
 import { useCurrentPlan } from "@/hooks/use-plan";
 import { ShoppingListItem } from "@/components/shopping/shopping-list-item";
+import { PresenceIndicator } from "@/components/shopping/presence-indicator";
 import type { ShoppingListItem as ShoppingListItemType, IngredientCategory } from "@/lib/api/types";
 
 // Ordre d'affichage des rayons en supermarché français
@@ -41,6 +44,13 @@ export default function ShoppingListPage() {
 
   const { data: normalizedItems = [], isLoading, error } = useShoppingList(planId);
   const toggleMutation = useToggleItem(planId ?? "");
+
+  // Realtime : synchro multi-device via Supabase Realtime
+  useShoppingListRealtime(planId);
+
+  // Presence : afficher les autres membres connectés
+  // Note : currentUser simplifié — en production, récupérer depuis le contexte auth
+  const onlineUsers = useShoppingPresence(planId, null);
 
   // Les items sont normalises par getShoppingList() dans endpoints.ts
   // La category est deja mappee en IngredientCategory (anglais) par mapRayonToCategory()
@@ -124,6 +134,7 @@ export default function ShoppingListPage() {
             <p className="mt-0.5 text-sm text-neutral-500 dark:text-neutral-400">
               {checkedCount} / {totalCount} articles
             </p>
+            <PresenceIndicator onlineUsers={onlineUsers} />
           </div>
 
           {/* Progression visuelle */}

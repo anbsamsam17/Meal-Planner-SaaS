@@ -24,7 +24,7 @@ export function useShoppingList(planId: string | null) {
       return getShoppingList(planId);
     },
     enabled: !!planId,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 30 * 1000, // 30s — polling fallback pour le realtime
   });
 
   return query;
