@@ -31,6 +31,7 @@ export interface Recipe {
   prep_time_min?: number | null;
   cook_time_min?: number | null;
   cuisine_type?: string | null;
+  course?: CourseType | null;
   tags?: string[];
   quality_score?: number | null;
 
@@ -268,6 +269,7 @@ export interface BookGenerateResponse {
 export interface RecipeFilters {
   q?: string;
   cuisine?: string;
+  course?: CourseType;
   max_time?: number; // minutes — slider 15-120
   difficulty?: 1 | 2 | 3 | 4 | 5;
   diet?: DietaryTag | DietaryTag[];
@@ -283,6 +285,18 @@ export interface ImportUrlResponse {
   status: "queued" | "completed" | "error";
   message: string;
 }
+
+// --- Catégorie de plat ---
+
+export type CourseType =
+  | "plat_principal"
+  | "accompagnement"
+  | "dessert"
+  | "boisson"
+  | "entree"
+  | "petit_dejeuner"
+  | "pain_viennoiserie"
+  | "sauce_condiment";
 
 // --- Types utilitaires ---
 

@@ -289,6 +289,7 @@ async def _retrieve_by_similarity(
         FROM recipes r
         JOIN recipe_embeddings re ON re.recipe_id = r.id
         WHERE r.quality_score >= :quality_min
+          AND r.course = 'plat_principal'
           AND (re.total_time_min IS NULL OR re.total_time_min <= :time_max)
           {excluded_tags_clause}
           {excluded_ids_clause}
@@ -362,6 +363,7 @@ async def _retrieve_by_quality(
             0.0 AS distance
         FROM recipes r
         WHERE r.quality_score >= :quality_min
+          AND r.course = 'plat_principal'
           AND (r.total_time_min IS NULL OR r.total_time_min <= :time_max)
           {excluded_tags_clause}
           {excluded_ids_clause}
@@ -441,6 +443,7 @@ async def _retrieve_by_quality_no_embedding(
             0.0 AS distance
         FROM recipes r
         WHERE r.quality_score >= :quality_min
+          AND r.course = 'plat_principal'
           {extra_where}
         ORDER BY RANDOM()
         LIMIT :k

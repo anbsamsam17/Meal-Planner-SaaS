@@ -84,6 +84,10 @@ class Recipe(Base):
     )
     difficulty: Mapped[int | None] = mapped_column(Integer)
     cuisine_type: Mapped[str | None] = mapped_column(Text)
+    # Type de plat : plat_principal, accompagnement, dessert, boisson,
+    # entree, petit_dejeuner, pain_viennoiserie, sauce_condiment
+    # Ajouté par migration 0009 — nullable car classification progressive via script
+    course: Mapped[str | None] = mapped_column(Text)
     photo_url: Mapped[str | None] = mapped_column(Text)
     nutrition: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="'{}'")
     tags: Mapped[list[str]] = mapped_column(
@@ -286,9 +290,7 @@ class RecipeIngredient(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     position: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
-    __table_args__ = (
-        CheckConstraint("quantity > 0", name="recipe_ingredients_quantity_check"),
-    )
+    __table_args__ = (CheckConstraint("quantity > 0", name="recipe_ingredients_quantity_check"),)
 
     # Relations
     recipe: Mapped["Recipe"] = relationship("Recipe", back_populates="recipe_ingredients")

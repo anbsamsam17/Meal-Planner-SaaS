@@ -199,7 +199,7 @@ async def generate_plan(
         )
 
         # 1. Construire la query filtree selon les preferences utilisateur
-        conditions = ["quality_score >= 0.6", "NOT ('dessert' = ANY(tags))"]
+        conditions = ["quality_score >= 0.6", "course = 'plat_principal'"]
         params: dict[str, object] = {"limit": body.num_dinners * 6}
 
         if body.max_time:
@@ -1198,7 +1198,7 @@ async def get_recipe_suggestions(
     existing_ids = [str(row[0]) for row in existing_result.fetchall()]
 
     # Construire la query filtree
-    conditions = ["quality_score >= 0.6", "NOT ('dessert' = ANY(tags))"]
+    conditions = ["quality_score >= 0.6", "course = 'plat_principal'"]
     params: dict[str, object] = {"limit": 6}
 
     if existing_ids:

@@ -168,6 +168,7 @@ def build_recipe_list_key(
     max_difficulty: int | None,
     diet: list[str] | None,
     season: str | None,
+    course: str | None = None,
 ) -> str:
     """
     Clé cache pour la liste/recherche de recettes (TTL 5min).
@@ -182,6 +183,7 @@ def build_recipe_list_key(
         f"&cuisine={cuisine or ''}&max_time={max_time or ''}"
         f"&budget={budget or ''}&min_diff={min_difficulty or ''}"
         f"&max_diff={max_difficulty or ''}&diet={diet_str}&season={season or ''}"
+        f"&course={course or ''}"
     )
     return _build_cache_key(suffix)
 

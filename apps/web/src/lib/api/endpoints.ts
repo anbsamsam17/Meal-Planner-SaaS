@@ -456,6 +456,7 @@ export async function searchRecipesAdvanced(
   const params = new URLSearchParams();
   if (filters.q) params.set("q", filters.q);
   if (filters.cuisine) params.set("cuisine", filters.cuisine);
+  if (filters.course) params.set("course", filters.course);
   if (filters.max_time) params.set("max_time", String(filters.max_time));
   // BUG-001 : l'API déclare min_difficulty / max_difficulty, pas "difficulty"
   // On envoie max_difficulty pour filtrer "au plus cette difficulté"

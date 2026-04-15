@@ -61,6 +61,7 @@ class RecipeOut(BaseModel):
     photo_url: str | None = None
     tags: list[str] = []
     quality_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    course: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -164,7 +165,7 @@ async def get_random_recipes(
                     WITH sampled AS (
                         SELECT id, title, slug, source, servings, prep_time_min,
                                cook_time_min, total_time_min, difficulty, cuisine_type,
-                               photo_url, tags, quality_score
+                               photo_url, tags, quality_score, course
                         FROM recipes TABLESAMPLE BERNOULLI(10)
                         WHERE quality_score >= 0.6
                         LIMIT :count
@@ -172,7 +173,7 @@ async def get_random_recipes(
                     fallback AS (
                         SELECT id, title, slug, source, servings, prep_time_min,
                                cook_time_min, total_time_min, difficulty, cuisine_type,
-                               photo_url, tags, quality_score
+                               photo_url, tags, quality_score, course
                         FROM recipes
                         WHERE quality_score >= 0.6
                         ORDER BY RANDOM()
@@ -263,6 +264,10 @@ async def search_recipes(
         description="Filtre saison : 'printemps', 'été', 'automne', 'hiver'. "
         "Filtre sur le tableau tags de la recette.",
     ),
+    course: str | None = Query(
+        default=None,
+        description="Filtre par catégorie de plat : 'plat_principal', 'accompagnement', 'dessert', 'boisson', 'entree', 'petit_dejeuner', 'pain_viennoiserie', 'sauce_condiment'.",
+    ),
 ) -> RecipeSearchResult:
     """
     Recherche de recettes avec filtres et pagination.
@@ -326,6 +331,7 @@ async def search_recipes(
         max_difficulty=max_difficulty,
         diet=normalized_diet,
         season=season,
+        course=course,
     )
 
     async def _fetch_from_db() -> dict[str, Any]:
@@ -381,6 +387,11 @@ async def search_recipes(
                     conditions.append(":season = ANY(tags)")
                     params["season"] = season
 
+                # Filtre catégorie de plat (colonne course)
+                if course is not None:
+                    conditions.append("course = :course")
+                    params["course"] = course
+
                 where_clause = " AND ".join(conditions)
 
                 # FIX Phase 1 mature (review 2026-04-12) — BUG #8 :
@@ -392,7 +403,7 @@ async def search_recipes(
                         f"""
                         SELECT id, title, slug, source, servings, prep_time_min,
                                cook_time_min, total_time_min, difficulty, cuisine_type,
-                               photo_url, tags, quality_score,
+                               photo_url, tags, quality_score, course,
                                COUNT(*) OVER() AS total_count
                         FROM recipes
                         WHERE {where_clause}
@@ -651,7 +662,7 @@ async def get_recipe(
                     """
                     SELECT id, title, slug, source, servings, prep_time_min,
                            cook_time_min, total_time_min, difficulty, cuisine_type,
-                           photo_url, description, tags, quality_score, instructions
+                           photo_url, description, tags, quality_score, course, instructions
                     FROM recipes
                     WHERE id = :recipe_id
                     LIMIT 1

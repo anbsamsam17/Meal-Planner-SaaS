@@ -7,7 +7,7 @@
 import { useState, useCallback } from "react";
 import { SlidersHorizontal, X, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { RecipeFilters, DietaryTag } from "@/lib/api/types";
+import type { RecipeFilters, DietaryTag, CourseType } from "@/lib/api/types";
 
 // --- Constantes des options de filtres ---
 
@@ -40,6 +40,17 @@ const TOP_CUISINES: { value: string; label: string }[] = [
   { value: "espagnole", label: "Espagnole" },
   { value: "américaine", label: "Américaine" },
   { value: "britannique", label: "Britannique" },
+];
+
+const COURSE_OPTIONS: { value: CourseType; label: string }[] = [
+  { value: "plat_principal", label: "Plat principal" },
+  { value: "entree", label: "Entrée" },
+  { value: "accompagnement", label: "Accompagnement" },
+  { value: "dessert", label: "Dessert" },
+  { value: "boisson", label: "Boisson" },
+  { value: "petit_dejeuner", label: "Petit-déjeuner" },
+  { value: "pain_viennoiserie", label: "Pain & Viennoiserie" },
+  { value: "sauce_condiment", label: "Sauce & Condiment" },
 ];
 
 // Difficulté 1-5 → labels FR
@@ -127,6 +138,7 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
   }
 
   const hasActiveFilters =
+    !!filters.course ||
     !!filters.budget ||
     !!filters.cuisine ||
     !!filters.difficulty ||
@@ -135,6 +147,28 @@ export function RecipeFiltersPanel({ filters, onChange, resultCount }: RecipeFil
 
   const filtersContent = (
     <div className="space-y-6">
+      {/* Catégorie */}
+      <section aria-labelledby="filter-course">
+        <h3
+          id="filter-course"
+          className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500"
+        >
+          Catégorie
+        </h3>
+        <div className="flex flex-wrap gap-2">
+          {COURSE_OPTIONS.map(({ value, label }) => (
+            <Chip
+              key={value}
+              label={label}
+              active={filters.course === value}
+              onClick={() =>
+                updateFilter("course", filters.course === value ? undefined : value)
+              }
+            />
+          ))}
+        </div>
+      </section>
+
       {/* Budget */}
       <section aria-labelledby="filter-budget">
         <h3
