@@ -1040,7 +1040,7 @@ async def _insert_recipe_with_ingredients(
                 instructions, servings,
                 prep_time_min, cook_time_min,
                 difficulty, cuisine_type,
-                tags, quality_score,
+                tags, quality_score, language,
                 created_at, updated_at
             ) VALUES (
                 :id, :title, :slug, 'marmiton', :source_url,
@@ -1048,7 +1048,7 @@ async def _insert_recipe_with_ingredients(
                 CAST(:instructions AS jsonb), :servings,
                 :prep_time_min, :cook_time_min,
                 :difficulty, :cuisine_type,
-                CAST(:tags AS text[]), :quality_score,
+                CAST(:tags AS text[]), :quality_score, 'fr',
                 NOW(), NOW()
             )
             ON CONFLICT (slug) DO NOTHING
