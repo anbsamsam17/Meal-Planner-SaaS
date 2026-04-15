@@ -1,18 +1,110 @@
 {
+  "model": "claude-opus-4-6",
+  "effortLevel": "high",
+  "autoMemoryEnabled": true,
+
   "permissions": {
     "allow": [
-      "Read",
+      "Read(**)",
       "Glob",
       "Grep",
       "Edit",
-      "Write",
-      "Bash"
+      "Write(apps/**)",
+      "Write(packages/**)",
+      "Write(docs/**)",
+      "Write(tests/**)",
+      "Write(memory/**)",
+      "Write(scripts/**)",
+      "Bash(make *)",
+      "Bash(pnpm *)",
+      "Bash(git status)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git checkout *)",
+      "Bash(git branch *)",
+      "Bash(gh pr *)",
+      "Bash(gh issue *)",
+      "Bash(pytest *)",
+      "Bash(ruff *)",
+      "Bash(mypy *)",
+      "Bash(alembic *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Agent"
     ],
     "deny": [
-      "Bash(rm -rf*)"
+      "Bash(rm -rf *)",
+      "Bash(git push --force *)",
+      "Bash(git push * --force)",
+      "Bash(git reset --hard *)",
+      "Bash(curl * | bash)",
+      "Bash(eval *)",
+      "Read(.env)",
+      "Read(.env.local)",
+      "Read(.env.production)",
+      "Write(.env)",
+      "Write(.env.local)",
+      "Write(.env.production)",
+      "Write(pnpm-lock.yaml)",
+      "Write(uv.lock)",
+      "Write(railway.toml)",
+      "Write(docker-compose.dev.yml)"
     ]
   },
+
   "env": {
     "CLAUDE_PROJECT": "true"
+  },
+
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/dev-discipline.sh\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/protect-files.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-edit-check.sh\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/auto-format.sh\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/verify-before-done.sh\""
+          }
+        ]
+      }
+    ]
   }
 }

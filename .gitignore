@@ -212,3 +212,4 @@ temp/
 *.bak
 *.orig
 *.backup
+.claude/settings.local.json

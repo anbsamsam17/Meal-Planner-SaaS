@@ -18,6 +18,13 @@ links:
 
 ---
 
+## 2026-04-15 — asyncpg ne supporte pas :param::type dans SQLAlchemy text()
+**Erreur commise** : Les scripts de scraping utilisaient `:nutrition::jsonb` et `:tags::text[]` dans les requêtes `text()` de SQLAlchemy. asyncpg interprète `::` comme un cast PostgreSQL mais ne résout pas le `:name` avant → erreur de syntaxe SQL.
+**Règle à retenir** : Avec asyncpg, utiliser `CAST(:param AS jsonb)` au lieu de `:param::jsonb`. Pour les arrays `text[]`, passer une Python `list` directement avec `CAST(:param AS text[])` — asyncpg encode nativement les listes Python en arrays PG.
+**Comment l'éviter** : Chercher `::jsonb`, `::text[]`, `::int[]` dans tout script utilisant `text()` + asyncpg. Les remplacer systématiquement par `CAST(:param AS type)`.
+
+---
+
 ## 2026-04-14 — REC-04/REC-05 : mismatch API→frontend dans hook et shopping list (fullstack-developer)
 
 **REC-04 — Shopping list items non persistés** :
@@ -29,6 +36,13 @@ Le hook `useToggleItem` était en "Phase 1" localStorage uniquement. L'API backe
 Le hook `useHousehold` faisait `apiClient.get<HouseholdResponse>("/api/v1/households/me")` en supposant que l'API retournait `{household, members, preferences}`. Mais le backend retourne `HouseholdRead` = `{id, name, plan, members[{...preferences}]}`. Les préférences sont imbriquées dans chaque membre (`members[].preferences`), pas au niveau racine. Le `useEffect` de `settings-content.tsx` accédait à `household.preferences` qui était toujours `undefined`.
 **Règle à retenir** : Toujours lire le schéma Pydantic de retour (`response_model=`) du backend avant de typer la réponse dans le hook frontend. Ajouter une fonction `normalizeXxx()` dans le hook pour mapper le format API brut vers le type normalisé attendu par les composants.
 **Comment l'éviter** : Dans le hook, typer le retour brut de l'API avec `XxxRaw` et le résultat normalisé avec `XxxResponse`. Ne jamais caster `apiClient.get<FrontendType>()` directement sans normalisation quand les structures diffèrent.
+
+---
+
+## 2026-04-15 — CSP strict-dynamic incompatible avec Next.js 14
+**Erreur commise** : Ajout de `'strict-dynamic'` au `script-src` CSP en production. Cela annule `'unsafe-inline'` (spec CSP3), bloquant les scripts d'hydration Next.js → page blanche.
+**Règle à retenir** : `'strict-dynamic'` et `'unsafe-inline'` sont mutuellement exclusifs en CSP3. Next.js 14 nécessite `'unsafe-inline'` pour ses scripts d'hydration. Le seul moyen de supprimer `'unsafe-inline'` est d'implémenter des nonces dynamiques via middleware.
+**Comment l'éviter** : Ne jamais ajouter `'strict-dynamic'` à un projet Next.js sans nonces. Toujours tester la CSP en staging avant prod.
 
 ---
 

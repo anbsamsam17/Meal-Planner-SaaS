@@ -1,7 +1,37 @@
-# CLAUDE.md — MealPlanner SaaS
+# CLAUDE.md — Presto (MealPlanner SaaS)
 
 > Ce fichier est lu automatiquement par **Claude Code** (CLI) et **Claude Desktop Projects**
 > à chaque nouvelle conversation. Maintiens-le concis et à jour.
+
+---
+
+## IMPORTANT — Modèle requis
+
+**Utilise TOUJOURS Claude Opus 4.6 (ou plus récent)** pour ce projet.
+- Model ID : `claude-opus-4-6`
+- Effort level : `high`
+- Ce projet utilise l'orchestration multi-agents — Opus est le seul modèle
+  capable de gérer efficacement la coordination entre 28 sous-agents.
+
+---
+
+## Orchestration multi-agents
+
+Ce projet est configuré avec un **agent orchestrateur** (`@orchestrator`) qui coordonne
+les sous-agents spécialisés. Pour les tâches complexes :
+1. Invoque `@orchestrator` pour planifier et déléguer
+2. L'orchestrateur lance les agents pertinents en parallèle
+3. Chaque agent utilise Opus 4.6 pour une qualité maximale
+
+Agents clés :
+- Frontend → `@nextjs-developer`, `@frontend-developer`, `@typescript-pro`
+- Backend → `@backend-developer`, `@python-pro`, `@fullstack-developer`
+- DB → `@postgres-pro`, `@database-administrator`
+- Sécurité → `@security-auditor`, `@code-reviewer`
+- Paiement → `@payment-integration`
+- Tests → `@test-automator`, `@qa-expert`
+
+Agents disponibles dans `.claude/agents/` — invocables via `@nom-agent`.
 
 ---
 
