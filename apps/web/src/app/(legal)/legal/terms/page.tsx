@@ -4,7 +4,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Conditions d'utilisation — Presto",
+  title: "Conditions d'utilisation",
   description: "Conditions Générales d'Utilisation du service Presto de planification de repas.",
 };
 

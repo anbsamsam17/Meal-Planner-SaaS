@@ -45,9 +45,9 @@ VALID_CUISINES = [
 ]
 
 VALID_DIETS = [
-    "végétarien", "vegan", "sans_gluten", "sans_lactose", "halal",
-    "casher", "paléo", "keto", "low_carb", "sans_noix", "sans_oeufs",
-    "sans_porc", "pescatarien",
+    "végétarien", "vegan", "sans-gluten", "sans-lactose", "halal",
+    "casher", "paléo", "keto", "low-carb", "sans-fruits-à-coque", "sans-oeufs",
+    "sans-porc", "sans-fruits-de-mer", "pescatarien",
 ]
 
 VALID_TIME_CATEGORIES = ["rapide", "normal", "long"]  # <30, 30-60, >60 min
@@ -366,7 +366,9 @@ def merge_tags_to_list(tags: RecipeTags) -> list[str]:
     """
     Convertit un RecipeTags en liste plate de chaînes pour la colonne `tags` DB.
 
-    Format : toutes les valeurs des champs sont concaténées dans une liste unique.
+    FIX (2026-04-15) : tags SANS préfixe pour matcher les filtres frontend.
+    Avant : "regime:vegan", "occasion:dessert" → jamais trouvés par = ANY(tags).
+    Après : "vegan", "dessert" → matchés directement.
 
     Args:
         tags: RecipeTags structuré.
@@ -374,15 +376,10 @@ def merge_tags_to_list(tags: RecipeTags) -> list[str]:
     Returns:
         Liste de chaînes pour le stockage en DB (colonne text[] de recipes).
     """
-    result: list[str] = [
-        f"cuisine:{tags.cuisine}",
-        f"temps:{tags.time_category}",
-        f"difficulte:{tags.difficulty}",
-        f"budget:{tags.budget}",
-    ]
+    result: list[str] = [tags.budget]
 
-    result.extend(f"regime:{tag}" for tag in tags.diet_tags)
-    result.extend(f"occasion:{occ}" for occ in tags.occasions)
+    result.extend(tags.diet_tags)
+    result.extend(tags.occasions)
     result.extend(tags.raw_tags)
 
     return result

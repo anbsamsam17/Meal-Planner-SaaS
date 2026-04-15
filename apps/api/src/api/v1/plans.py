@@ -24,7 +24,7 @@ from datetime import date
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -314,29 +314,38 @@ async def generate_plan(
 @limiter.limit(LIMIT_USER_READ, key_func=get_user_key)
 async def get_current_plan(
     request: Request,
+    week_start: str | None = Query(
+        default=None,
+        description="ISO date du lundi cible (ex: '2026-04-13'). Si absent, lundi de la semaine courante.",
+    ),
     session: AsyncSession = Depends(get_db),
     user: TokenPayload = Depends(get_current_user_dep),
 ) -> Any:
     """
-    Récupère le plan de la semaine courante (week_start = lundi de cette semaine).
+    Récupère le plan d'une semaine donnée (ou la semaine courante par défaut).
 
-    FIX Phase 1 mature (review 2026-04-12) — BUG #5 : session unique via Depends(get_db).
+    FIX CRIT (2026-04-14) : ajout du query param week_start pour la navigation
+    entre semaines. Le frontend envoie ?week_start=YYYY-MM-DD.
 
     Args:
         request: Requête FastAPI (requis par slowapi).
+        week_start: ISO date du lundi cible (optionnel, défaut = semaine courante).
         session: Session DB injectée (session unique par requête).
         user: Payload JWT.
 
     Returns:
-        WeeklyPlanDetail ou None si aucun plan cette semaine.
+        WeeklyPlanDetail ou None si aucun plan pour la semaine demandée.
     """
     from datetime import timedelta
 
     try:
         household_id = await _get_user_household_id(session, user.user_id)
 
-        today = date.today()
-        monday = today - timedelta(days=today.weekday())
+        if week_start:
+            monday = date.fromisoformat(week_start)
+        else:
+            today = date.today()
+            monday = today - timedelta(days=today.weekday())
 
         logger.info("get_current_plan_query", household_id=str(household_id), monday=str(monday))
 

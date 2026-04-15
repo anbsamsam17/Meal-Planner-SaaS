@@ -366,12 +366,13 @@ async def search_recipes(
                     params["max_difficulty"] = max_difficulty
 
                 # Filtre régime alimentaire (multi-select — AND logique entre les régimes)
-                # BUG P0 FIX (2026-04-14) : diet est maintenant list[str].
-                # tags @> :diet_arr = "tags contient TOUS les éléments de diet_arr" (opérateur PostgreSQL).
-                # Nécessite le cast ::text[] car SQLAlchemy passe la liste Python comme paramètre lié.
+                # FIX CRIT (2026-04-14) : SQLAlchemy text() ne peut pas sérialiser
+                # list[str] Python → PostgreSQL text[]. L'opérateur @> avec :diet_arr::text[]
+                # retournait 0 résultats. Corrigé en conditions individuelles = ANY(tags).
                 if normalized_diet:
-                    conditions.append("tags @> :diet_arr::text[]")
-                    params["diet_arr"] = normalized_diet
+                    for idx, diet_tag in enumerate(normalized_diet):
+                        conditions.append(f":diet_{idx} = ANY(tags)")
+                        params[f"diet_{idx}"] = diet_tag
 
                 # Filtre saison (tag dans le tableau tags)
                 if season is not None:

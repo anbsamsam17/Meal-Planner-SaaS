@@ -462,10 +462,13 @@ export async function searchRecipesAdvanced(
   if (filters.budget) params.set("budget", filters.budget);
   if (filters.page) params.set("page", String(filters.page));
   if (filters.per_page) params.set("per_page", String(filters.per_page));
-  // L'API n'accepte qu'un seul diet (str | None) -- envoyer uniquement le premier
+  // FIX CRIT (2026-04-14) : l'API accepte diet: list[str] via ?diet=a&diet=b
+  // Envoyer tous les tags sélectionnés (AND logique côté backend)
   if (filters.diet) {
-    const firstDiet = Array.isArray(filters.diet) ? filters.diet[0] : filters.diet;
-    if (firstDiet) params.set("diet", firstDiet);
+    const dietTags = Array.isArray(filters.diet) ? filters.diet : [filters.diet];
+    for (const tag of dietTags) {
+      if (tag) params.append("diet", tag);
+    }
   }
 
   const qs = params.toString();

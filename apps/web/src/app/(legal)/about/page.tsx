@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "À propos — Presto",
+  title: "À propos",
   description:
     "Découvrez Presto, votre assistant intelligent de planification de repas pour les familles françaises.",
 };

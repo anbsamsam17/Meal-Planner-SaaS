@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 import { Mail, Clock, MessageCircle } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Contact — Presto",
+  title: "Contact",
   description:
     "Contactez l'équipe Presto pour toute question, suggestion ou signalement. Réponse sous 24h.",
 };
