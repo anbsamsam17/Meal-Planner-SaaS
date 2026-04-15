@@ -99,6 +99,7 @@ export function DashboardContent({ initialPlanData }: DashboardContentProps) {
           max_time: filters.max_time ?? undefined,
           budget: filters.budget ?? undefined,
           style: filters.style ?? undefined,
+          envie: filters.envie ?? undefined,
         },
         {
           onError: (error: Error) => {
@@ -112,6 +113,7 @@ export function DashboardContent({ initialPlanData }: DashboardContentProps) {
                   max_time: filters.max_time ?? undefined,
                   budget: filters.budget ?? undefined,
                   style: filters.style ?? undefined,
+                  envie: filters.envie ?? undefined,
                 });
               }, 3000);
             } else if (error.message.includes("401") || error.message.includes("403")) {

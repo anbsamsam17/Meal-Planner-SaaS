@@ -18,6 +18,19 @@ links:
 
 ---
 
+## 2026-04-15 — Migration SQL vers Supabase : 3 pièges d'export JSONB
+**Erreur commise** : L'export pg_dump/psql des recettes vers des INSERT SQL a produit du JSON invalide pour Supabase : (1) U+2028 (LINE SEPARATOR) non échappé par `json.dumps(ensure_ascii=False)`, (2) `\r\n` bruts dans le texte des instructions, (3) backslashes orphelins `\ ` issus du scraping HTML. De plus, la colonne `language` n'existait pas en prod (migration Alembic jamais exécutée), et les UUID des ingrédients différaient entre dev et prod → conflit `canonical_name`.
+**Règle à retenir** : Pour exporter des données JSONB vers SQL :
+- TOUJOURS utiliser psycopg2 + `json.dumps()` natif (pas pg_dump texte)
+- TOUJOURS sanitizer les strings AVANT json.dumps : supprimer CR (0x0d), U+2028, U+2029, tout char < 0x20
+- `json.dumps(ensure_ascii=False)` ne protège PAS contre U+2028/U+2029
+- Pour les ingrédients avec contrainte unique sur `canonical_name` : utiliser `ON CONFLICT (canonical_name) DO UPDATE SET id = EXCLUDED.id`
+- Chaque fichier SQL doit être autonome : inclure `SET session_replication_role = replica` dans chaque fichier (pas seulement le premier)
+- Supabase SQL Editor a une limite de ~1 Mo : découper les gros fichiers
+**Comment l'éviter** : Utiliser `scripts/export_recipes_clean.py` pour tout export futur. La fonction `_sanitize_jsonb_value()` nettoie récursivement toute structure JSONB.
+
+---
+
 ## 2026-04-15 — asyncpg ne supporte pas :param::type dans SQLAlchemy text()
 **Erreur commise** : Les scripts de scraping utilisaient `:nutrition::jsonb` et `:tags::text[]` dans les requêtes `text()` de SQLAlchemy. asyncpg interprète `::` comme un cast PostgreSQL mais ne résout pas le `:name` avant → erreur de syntaxe SQL.
 **Règle à retenir** : Avec asyncpg, utiliser `CAST(:param AS jsonb)` au lieu de `:param::jsonb`. Pour les arrays `text[]`, passer une Python `list` directement avec `CAST(:param AS text[])` — asyncpg encode nativement les listes Python en arrays PG.

@@ -127,6 +127,7 @@ export interface GeneratePlanBody {
   max_time?: number | null;
   budget?: string | null;
   style?: string | null;
+  envie?: string | null;
 }
 
 // Parametres de generation exposes aux composants
@@ -136,6 +137,7 @@ export interface GeneratePlanParams {
   max_time?: number | null;
   budget?: string | null;
   style?: string | null;
+  envie?: string | null;
 }
 
 // Calcule le lundi de la semaine EN COURS (pas la semaine prochaine).
@@ -214,6 +216,7 @@ export async function generatePlan(params?: GeneratePlanParams): Promise<Generat
     ...(params?.max_time != null && { max_time: params.max_time }),
     ...(params?.budget != null && { budget: params.budget }),
     ...(params?.style != null && { style: params.style }),
+    ...(params?.envie != null && { envie: params.envie }),
   };
   return apiClient.post<GeneratePlanResponse>("/api/v1/plans/generate", body);
 }

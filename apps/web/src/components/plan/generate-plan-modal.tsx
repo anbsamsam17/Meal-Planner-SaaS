@@ -16,6 +16,7 @@ export interface GenerateFilters {
   max_time: number | null;
   budget: string | null;
   style: string | null;
+  envie: string | null;
 }
 
 // --- Options pour chaque question ---
@@ -129,7 +130,6 @@ export function GeneratePlanModal({
   const [maxTime, setMaxTime] = useState<number | null>(45);
   const [budget, setBudget] = useState<string | null>(null);
   const [style, setStyle] = useState<string | null>(null);
-  // Envie est informatif pour le futur, pas envoye a l'API
   const [envie, setEnvie] = useState<string | null>(null);
 
   const handleGenerate = useCallback(() => {
@@ -137,8 +137,9 @@ export function GeneratePlanModal({
       max_time: maxTime,
       budget,
       style,
+      envie,
     });
-  }, [maxTime, budget, style, onGenerate]);
+  }, [maxTime, budget, style, envie, onGenerate]);
 
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>

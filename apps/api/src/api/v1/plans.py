@@ -63,6 +63,14 @@ _STYLE_NORMALIZE: dict[str, str] = {
     "rapide": "rapide",
 }
 
+# Mapping des budgets envoyés par le frontend (sans accent) vers la forme canonique DB.
+_BUDGET_NORMALIZE: dict[str, str] = {
+    "economique": "économique",
+    "économique": "économique",
+    "moyen": "moyen",
+    "premium": "premium",
+}
+
 router = APIRouter(prefix="/plans", tags=["plans"])
 
 
@@ -220,19 +228,51 @@ async def generate_plan(
 
         effective_budget = body.effective_budget
         if effective_budget:
+            normalized_budget = _BUDGET_NORMALIZE.get(effective_budget, effective_budget)
             conditions.append(":budget = ANY(tags)")
-            params["budget"] = effective_budget
+            params["budget"] = normalized_budget
 
         normalized_style = _STYLE_NORMALIZE.get(body.style, body.style) if body.style else None
         if normalized_style == "végétarien":
-            conditions.append("'végétarien' = ANY(tags)")
+            # Exclure les recettes contenant viande ou poisson
+            conditions.append("""
+                NOT EXISTS (
+                    SELECT 1 FROM recipe_ingredients ri
+                    JOIN ingredients i ON i.id = ri.ingredient_id
+                    WHERE ri.recipe_id = recipes.id AND i.category IN ('meat', 'fish')
+                )
+            """)
         elif normalized_style == "protéiné":
-            conditions.append("NOT ('végétarien' = ANY(tags))")
-            conditions.append("NOT ('vegan' = ANY(tags))")
+            # Recettes avec au moins un ingrédient riche en protéines
+            conditions.append("""
+                EXISTS (
+                    SELECT 1 FROM recipe_ingredients ri
+                    JOIN ingredients i ON i.id = ri.ingredient_id
+                    WHERE ri.recipe_id = recipes.id AND i.category IN ('meat', 'fish', 'legumes')
+                )
+            """)
         elif normalized_style == "léger":
-            conditions.append("difficulty <= 2")
-        elif normalized_style == "gourmand":
-            conditions.append("difficulty >= 3")
+            # Pas de viande, riche en légumes/fruits/poisson
+            conditions.append("""
+                NOT EXISTS (
+                    SELECT 1 FROM recipe_ingredients ri
+                    JOIN ingredients i ON i.id = ri.ingredient_id
+                    WHERE ri.recipe_id = recipes.id AND i.category = 'meat'
+                )
+            """)
+            conditions.append("""
+                EXISTS (
+                    SELECT 1 FROM recipe_ingredients ri
+                    JOIN ingredients i ON i.id = ri.ingredient_id
+                    WHERE ri.recipe_id = recipes.id AND i.category IN ('vegetables', 'fruits', 'fish')
+                )
+            """)
+        # gourmand: pas de filtre restrictif — toutes les recettes sont éligibles
+
+        if body.envie == "francaise":
+            conditions.append("cuisine_type = 'française'")
+        elif body.envie == "monde":
+            conditions.append("cuisine_type != 'française'")
 
         where = " AND ".join(conditions)
 
@@ -1227,16 +1267,39 @@ async def get_recipe_suggestions(
 
     normalized_style = _STYLE_NORMALIZE.get(style, style) if style else None
     if normalized_style == "végétarien":
-        conditions.append("'végétarien' = ANY(tags)")
+        conditions.append("""
+            NOT EXISTS (
+                SELECT 1 FROM recipe_ingredients ri
+                JOIN ingredients i ON i.id = ri.ingredient_id
+                WHERE ri.recipe_id = recipes.id AND i.category IN ('meat', 'fish')
+            )
+        """)
     elif normalized_style == "protéiné":
-        conditions.append("NOT ('végétarien' = ANY(tags))")
-        conditions.append("NOT ('vegan' = ANY(tags))")
+        conditions.append("""
+            EXISTS (
+                SELECT 1 FROM recipe_ingredients ri
+                JOIN ingredients i ON i.id = ri.ingredient_id
+                WHERE ri.recipe_id = recipes.id AND i.category IN ('meat', 'fish', 'legumes')
+            )
+        """)
     elif normalized_style == "léger":
-        conditions.append("difficulty <= 2")
+        conditions.append("""
+            NOT EXISTS (
+                SELECT 1 FROM recipe_ingredients ri
+                JOIN ingredients i ON i.id = ri.ingredient_id
+                WHERE ri.recipe_id = recipes.id AND i.category = 'meat'
+            )
+        """)
+        conditions.append("""
+            EXISTS (
+                SELECT 1 FROM recipe_ingredients ri
+                JOIN ingredients i ON i.id = ri.ingredient_id
+                WHERE ri.recipe_id = recipes.id AND i.category IN ('vegetables', 'fruits', 'fish')
+            )
+        """)
     elif normalized_style == "rapide":
         conditions.append("total_time_min <= 30")
-    elif normalized_style == "gourmand":
-        conditions.append("difficulty >= 3")
+    # gourmand: pas de filtre restrictif
 
     if q:
         conditions.append("(title ILIKE :query OR cuisine_type ILIKE :query)")

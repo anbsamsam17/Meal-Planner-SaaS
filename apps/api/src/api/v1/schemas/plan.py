@@ -144,6 +144,10 @@ class GeneratePlanRequest(BaseModel):
         default=None,
         description="Style culinaire : 'gourmand', 'léger', 'protéiné', 'végétarien'.",
     )
+    envie: str | None = Field(
+        default=None,
+        description="Préférence cuisine : 'francaise', 'monde'. Null = surprise (pas de filtre).",
+    )
 
     # ---- Filtres Phase 2 (conservés pour rétrocompatibilité) ----
     budget_max: str | None = Field(
