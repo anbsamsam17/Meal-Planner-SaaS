@@ -225,6 +225,8 @@ export function RecipesExplorer() {
     queryKey: ["recipes", "explore", activeFilters, page],
     queryFn: () => searchRecipesAdvanced(activeFilters),
     staleTime: 3 * 60 * 1000, // 3 minutes
+    // Ne pas fetcher en mode favoris — évite les requêtes réseau inutiles
+    enabled: activeTab === "all",
   });
 
   // searchRecipesAdvanced normalise la réponse API (results → data) — lire directement data

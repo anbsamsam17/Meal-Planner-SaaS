@@ -29,10 +29,14 @@ Invalidation :
 
 import json
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, TypeVar
 
 import redis.asyncio as aioredis
 from loguru import logger
+
+# FIX BUG P0 (2026-04-16) : syntaxe `async def cache_response[T]` (PEP 695)
+# incompatible avec Python 3.11. Remplacé par TypeVar classique (compatible 3.9+).
+T = TypeVar("T")
 
 # -------------------------------------------------------------------------
 # Configuration des TTLs (en secondes)
@@ -91,7 +95,7 @@ def _build_cache_key(key_suffix: str) -> str:
     return f"{CACHE_KEY_PREFIX}{key_suffix}"
 
 
-async def cache_response[T](
+async def cache_response(
     redis: aioredis.Redis | None,
     cache_key: str,
     ttl: int,

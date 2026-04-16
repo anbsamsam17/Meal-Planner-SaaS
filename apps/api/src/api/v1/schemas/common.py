@@ -7,14 +7,16 @@ Ces schémas standardisent les réponses API pour :
 - Les tâches asynchrones (TaskResponse)
 """
 
-from typing import Any, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, Field
 
+# FIX BUG P0 (2026-04-16) : syntaxe PaginatedResponse[T] (PEP 695) incompatible Python 3.11.
+# Remplacé par Generic[T] (compatible Python 3.9+).
 T = TypeVar("T")
 
 
-class PaginatedResponse[T](BaseModel):
+class PaginatedResponse(BaseModel, Generic[T]):
     """Réponse paginée générique pour les endpoints de liste."""
 
     results: list[T]

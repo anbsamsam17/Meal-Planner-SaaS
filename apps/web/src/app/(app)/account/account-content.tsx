@@ -102,7 +102,7 @@ export function AccountContent({ user, householdData }: AccountContentProps) {
             className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-neutral-400"
           >
             <Users className="h-4 w-4" aria-hidden="true" />
-            Mon foyer — {householdData.household.name}
+            Mon foyer — {householdData.name}
           </h2>
 
           <ul className="space-y-3">

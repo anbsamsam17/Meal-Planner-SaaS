@@ -5,7 +5,10 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
-import type { HouseholdAPIResponse, HouseholdMemberAPI } from "@/lib/api/types";
+import type { HouseholdAPIResponse } from "@/lib/api/types";
+// NOTE : HouseholdAPIResponse est une structure PLATE (id, name, plan, drive_provider, members[])
+// Le backend retourne HouseholdRead Pydantic directement, sans clé "household" imbriquée.
+// Les champs diet_tags/allergies/dislikes des membres sont dans member.preferences (MemberPreferenceRead).
 import { AccountContent } from "./account-content";
 
 export const metadata: Metadata = {
@@ -43,17 +46,25 @@ export default async function AccountPage() {
       });
 
       if (res.ok) {
-        const raw = (await res.json()) as HouseholdAPIResponse;
-        // Defensif : s'assurer que les membres ont des tableaux valides
+        // Le backend retourne HouseholdRead (structure plate) avec members: MemberRead[]
+        // MemberRead contient les champs diet_tags/allergies/dislikes dans preferences,
+        // pas au top-level. On normalise ici pour que account-content.tsx puisse les lire.
+        const raw = (await res.json()) as Record<string, unknown>;
         if (raw?.members && Array.isArray(raw.members)) {
-          raw.members = raw.members.map((m: HouseholdMemberAPI) => ({
-            ...m,
-            diet_tags: Array.isArray(m.diet_tags) ? m.diet_tags : [],
-            allergies: Array.isArray(m.allergies) ? m.allergies : [],
-            dislikes: Array.isArray(m.dislikes) ? m.dislikes : [],
-          }));
+          raw.members = raw.members.map((m: Record<string, unknown>) => {
+            const prefs = (m.preferences as Record<string, unknown>) ?? {};
+            return {
+              id: m.id,
+              display_name: m.display_name,
+              is_child: m.is_child ?? false,
+              birth_date: m.birth_date ?? null,
+              diet_tags: Array.isArray(prefs.diet_tags) ? prefs.diet_tags : [],
+              allergies: Array.isArray(prefs.allergies) ? prefs.allergies : [],
+              dislikes: Array.isArray(prefs.dislikes) ? prefs.dislikes : [],
+            };
+          });
         }
-        householdData = raw;
+        householdData = raw as unknown as HouseholdAPIResponse;
       } else {
         // Erreur HTTP non-2xx — logger pour le debugging serveur
         console.error(

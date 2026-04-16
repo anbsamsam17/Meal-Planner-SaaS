@@ -147,6 +147,8 @@ export interface HouseholdMember {
 }
 
 // --- Household API (réponse brute du backend — utilisée par account/page.tsx et account-content.tsx) ---
+// IMPORTANT : GET /api/v1/households/me retourne une structure PLATE (pas imbriquée).
+// HouseholdRead (Pydantic) = { id, name, plan, drive_provider, owner_id, created_at, updated_at, members[] }
 
 export interface HouseholdMemberAPI {
   id: string;
@@ -158,16 +160,24 @@ export interface HouseholdMemberAPI {
   dislikes: string[];
 }
 
-export interface HouseholdAPI {
+// Structure plate retournée directement par le backend (HouseholdRead Pydantic)
+export interface HouseholdAPIResponse {
   id: string;
-  owner_id: string;
   name: string;
+  plan: string;
   drive_provider: string | null;
+  owner_id: string | null;
+  created_at: string;
+  updated_at: string;
+  members: HouseholdMemberAPI[];
 }
 
-export interface HouseholdAPIResponse {
-  household: HouseholdAPI;
-  members: HouseholdMemberAPI[];
+// Alias gardé pour compatibilité — identique à HouseholdAPIResponse au top-level
+export interface HouseholdAPI {
+  id: string;
+  owner_id: string | null;
+  name: string;
+  drive_provider: string | null;
 }
 
 // --- Feedback (notation recette) ---
