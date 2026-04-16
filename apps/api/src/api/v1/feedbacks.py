@@ -4,12 +4,14 @@ Endpoints pour la gestion des feedbacks utilisateurs sur les recettes.
 Les feedbacks alimentent le moteur de recommandation TASTE_PROFILE.
 Chaque interaction (note, skip, favori) améliore les suggestions futures.
 
-Politique d'immuabilité :
-- Les feedbacks ne sont pas modifiables après soumission (journal immuable).
-- Pour "corriger" un feedback : soumettre un nouveau feedback
-  (le dernier gagne dans l'agrégation TASTE_PROFILE).
-- Conformité RGPD : la suppression passe par une procédure service_role
-  dédiée avec audit_log (Phase 2).
+Politique UPSERT (favoris) :
+- Pour feedback_type='favorited' : INSERT OR UPDATE pour éviter les doublons.
+  Si un favori existe déjà pour le même (member_id, recipe_id, feedback_type),
+  on met à jour le timestamp plutôt que de créer un doublon.
+- Pour les autres types ('cooked', 'skipped') : INSERT classique (journal immuable).
+
+Conformité RGPD : la suppression passe par une procédure service_role
+dédiée avec audit_log (Phase 2).
 
 Après chaque feedback : tâche Celery TASTE_PROFILE déclenchée (stub en v0).
 
@@ -25,6 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from loguru import logger
 from sqlalchemy import text
 
+from src.api.v1.recipes import RecipeOut
 from src.api.v1.schemas.common import PaginatedResponse
 from src.api.v1.schemas.feedback import FeedbackCreate, FeedbackRead
 from src.core.config import get_settings
@@ -130,30 +133,61 @@ async def submit_feedback(
                 detail=f"Recette {body.recipe_id} introuvable.",
             )
 
-        # Insertion du feedback
-        result = await session.execute(
-            text(
-                """
-                INSERT INTO recipe_feedbacks (
-                    household_id, member_id, recipe_id,
-                    feedback_type, rating, notes
-                ) VALUES (
-                    :household_id, :member_id, :recipe_id,
-                    :feedback_type, :rating, :notes
-                )
-                RETURNING id, household_id, member_id, recipe_id,
-                          feedback_type, rating, notes, created_at
-                """
-            ),
-            {
-                "household_id": str(household_id),
-                "member_id": str(member_id),
-                "recipe_id": str(body.recipe_id),
-                "feedback_type": body.feedback_type,
-                "rating": body.rating,
-                "notes": body.notes,
-            },
-        )
+        # UPSERT pour favoris : évite les doublons (member, recipe, type).
+        # Pour les autres types (cooked, skipped) : INSERT classique (journal immuable).
+        if body.feedback_type == "favorited":
+            result = await session.execute(
+                text(
+                    """
+                    INSERT INTO recipe_feedbacks (
+                        household_id, member_id, recipe_id,
+                        feedback_type, rating, notes
+                    ) VALUES (
+                        :household_id, :member_id, :recipe_id,
+                        :feedback_type, :rating, :notes
+                    )
+                    ON CONFLICT (member_id, recipe_id, feedback_type)
+                    DO UPDATE SET
+                        rating = EXCLUDED.rating,
+                        notes = EXCLUDED.notes,
+                        created_at = now()
+                    RETURNING id, household_id, member_id, recipe_id,
+                              feedback_type, rating, notes, created_at
+                    """
+                ),
+                {
+                    "household_id": str(household_id),
+                    "member_id": str(member_id),
+                    "recipe_id": str(body.recipe_id),
+                    "feedback_type": body.feedback_type,
+                    "rating": body.rating,
+                    "notes": body.notes,
+                },
+            )
+        else:
+            result = await session.execute(
+                text(
+                    """
+                    INSERT INTO recipe_feedbacks (
+                        household_id, member_id, recipe_id,
+                        feedback_type, rating, notes
+                    ) VALUES (
+                        :household_id, :member_id, :recipe_id,
+                        :feedback_type, :rating, :notes
+                    )
+                    RETURNING id, household_id, member_id, recipe_id,
+                              feedback_type, rating, notes, created_at
+                    """
+                ),
+                {
+                    "household_id": str(household_id),
+                    "member_id": str(member_id),
+                    "recipe_id": str(body.recipe_id),
+                    "feedback_type": body.feedback_type,
+                    "rating": body.rating,
+                    "notes": body.notes,
+                },
+            )
         feedback_row = result.mappings().one()
         await session.commit()
 
@@ -266,6 +300,116 @@ async def get_my_feedbacks(
 
     return PaginatedResponse.build(
         results=feedbacks,
+        total=total,
+        page=page,
+        per_page=per_page,
+    )
+
+
+# ---- GET /feedbacks/me/favorites ----
+
+@router.get(
+    "/me/favorites",
+    summary="Recettes en favoris",
+    description=(
+        "Retourne les recettes marquées en favori par l'utilisateur authentifié. "
+        "Résultat paginé, ordonné du plus récent au plus ancien. "
+        f"Rate limit : {LIMIT_USER_READ}."
+    ),
+    response_model=PaginatedResponse[RecipeOut],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {"description": "Authentification requise."},
+    },
+)
+@limiter.limit(LIMIT_USER_READ, key_func=get_user_key)
+async def get_my_favorites(
+    request: Request,
+    user: TokenPayload = Depends(get_current_user_dep),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=20, ge=1, le=100),
+) -> Any:
+    """
+    Retourne les recettes favorites paginées de l'utilisateur.
+
+    Effectue un JOIN entre recipe_feedbacks et recipes pour retourner
+    des objets RecipeOut complets (pas juste les feedbacks).
+
+    Args:
+        request: Requête FastAPI.
+        user: Payload JWT.
+        page: Page courante (1-indexed).
+        per_page: Éléments par page (max 100).
+
+    Returns:
+        PaginatedResponse[RecipeOut]
+    """
+    db_session = await _get_db(request)
+    member_id, _household_id = await _get_member_info(db_session, user.user_id)
+
+    offset = (page - 1) * per_page
+    params: dict = {
+        "member_id": str(member_id),
+        "limit": per_page,
+        "offset": offset,
+    }
+
+    async with db_session() as session:
+        count_result = await session.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM recipe_feedbacks rf
+                WHERE rf.member_id = :member_id
+                  AND rf.feedback_type = 'favorited'
+                """
+            ),
+            params,
+        )
+        total = count_result.scalar() or 0
+
+        rows_result = await session.execute(
+            text(
+                """
+                SELECT
+                    r.id,
+                    r.title,
+                    r.slug,
+                    r.source,
+                    r.servings,
+                    r.prep_time_min,
+                    r.cook_time_min,
+                    r.total_time_min,
+                    r.difficulty,
+                    r.cuisine_type,
+                    r.photo_url,
+                    r.tags,
+                    r.quality_score,
+                    r.course,
+                    r.nutrition
+                FROM recipe_feedbacks rf
+                JOIN recipes r ON r.id = rf.recipe_id
+                WHERE rf.member_id = :member_id
+                  AND rf.feedback_type = 'favorited'
+                ORDER BY rf.created_at DESC
+                LIMIT :limit OFFSET :offset
+                """
+            ),
+            params,
+        )
+        rows = rows_result.mappings().all()
+
+    recipes = [RecipeOut.model_validate(dict(row)) for row in rows]
+
+    logger.info(
+        "favorites_fetched",
+        member_id=str(member_id),
+        total=total,
+        page=page,
+        per_page=per_page,
+    )
+
+    return PaginatedResponse.build(
+        results=recipes,
         total=total,
         page=page,
         per_page=per_page,

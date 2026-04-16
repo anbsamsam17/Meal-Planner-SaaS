@@ -16,7 +16,7 @@ import type {
   PortalResponse,
   FridgeItem,
   FridgeItemCreate,
-  FridgeSuggestionsResponse,
+  RecipeSuggestion,
   BookInfo,
   BookGenerateResponse,
   RecipeFilters,
@@ -541,6 +541,29 @@ export async function createFeedback(data: FeedbackCreate): Promise<FeedbackResp
   return apiClient.post<FeedbackResponse>("/api/v1/feedbacks", data);
 }
 
+// GET /api/v1/feedbacks/me/favorites — recettes favorites de l'utilisateur (paginées)
+// Retourne un PaginatedResponse<Recipe> normalisé depuis le RecipeOut backend
+export async function getFavoriteRecipes(
+  page = 1,
+  per_page = 20,
+): Promise<PaginatedResponse<Recipe>> {
+  const raw = await apiClient.get<Record<string, any>>(
+    `/api/v1/feedbacks/me/favorites?page=${page}&per_page=${per_page}`,
+  );
+
+  // L'API retourne { results: [...], total, page, per_page, has_next }
+  const rawRecipes: Record<string, unknown>[] = raw.results ?? raw.data ?? [];
+  const normalizedRecipes = rawRecipes.map(normalizeRecipe);
+
+  return {
+    data: normalizedRecipes,
+    total: raw.total ?? 0,
+    page: raw.page ?? page,
+    per_page: raw.per_page ?? per_page,
+    has_next: raw.has_next ?? false,
+  } satisfies PaginatedResponse<Recipe>;
+}
+
 // ============================================================
 // PHASE 2 — Billing Stripe
 // ============================================================
@@ -591,8 +614,8 @@ export async function removeFridgeItem(id: string): Promise<void> {
   return apiClient.delete<void>(`/api/v1/fridge/${id}`);
 }
 
-export async function getFridgeSuggestions(): Promise<FridgeSuggestionsResponse> {
-  return apiClient.post<FridgeSuggestionsResponse>("/api/v1/fridge/suggest-recipes", {});
+export async function getFridgeSuggestions(): Promise<RecipeSuggestion[]> {
+  return apiClient.post<RecipeSuggestion[]>("/api/v1/fridge/suggest-recipes", {});
 }
 
 // ============================================================

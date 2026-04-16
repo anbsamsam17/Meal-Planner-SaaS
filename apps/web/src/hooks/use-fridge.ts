@@ -10,7 +10,7 @@ import {
   removeFridgeItem,
   getFridgeSuggestions,
 } from "@/lib/api/endpoints";
-import type { FridgeItem, FridgeItemCreate, FridgeSuggestionsResponse } from "@/lib/api/types";
+import type { FridgeItem, FridgeItemCreate, RecipeSuggestion } from "@/lib/api/types";
 import { toast } from "sonner";
 
 export const FRIDGE_QUERY_KEYS = {
@@ -82,15 +82,16 @@ export function useRemoveFridgeItem() {
 
 // Mutation — Suggestions recettes basées sur le contenu du frigo
 // (POST /api/v1/fridge/suggest-recipes)
+// Le backend retourne list[RecipeSuggestion] (tableau plat, pas d'enveloppe)
 export function useFridgeSuggestions() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: getFridgeSuggestions,
-    onSuccess: (data: FridgeSuggestionsResponse) => {
+    onSuccess: (data: RecipeSuggestion[]) => {
       // Stocker les suggestions dans le cache pour lecture immédiate
       queryClient.setQueryData(FRIDGE_QUERY_KEYS.suggestions, data);
-      toast.success(`${data.recipes.length} recette(s) trouvée(s) avec vos ingrédients !`);
+      toast.success(`${data.length} recette(s) trouvée(s) avec vos ingrédients !`);
     },
     onError: (err: Error) => {
       toast.error("Impossible de générer des suggestions", { description: err.message });

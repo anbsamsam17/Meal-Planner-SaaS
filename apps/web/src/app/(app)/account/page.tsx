@@ -3,37 +3,15 @@
 // BUG 2 FIX (2026-04-12) : page créée (route /account manquante → 404)
 // Affiche profil Supabase + membres du foyer + actions (logout, paramètres, billing)
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
+import type { HouseholdAPIResponse, HouseholdMemberAPI } from "@/lib/api/types";
 import { AccountContent } from "./account-content";
 
 export const metadata: Metadata = {
   title: "Mon compte — Presto",
   description: "Gérez votre compte, votre foyer et vos préférences.",
 };
-
-interface HouseholdMemberAPI {
-  id: string;
-  display_name: string;
-  is_child: boolean;
-  birth_date: string | null;
-  diet_tags: string[];
-  allergies: string[];
-  dislikes: string[];
-}
-
-interface HouseholdAPI {
-  id: string;
-  owner_id: string;
-  name: string;
-  drive_provider: string | null;
-}
-
-interface HouseholdResponse {
-  household: HouseholdAPI;
-  members: HouseholdMemberAPI[];
-}
 
 export default async function AccountPage() {
   const supabase = createServerClient();
@@ -50,7 +28,7 @@ export default async function AccountPage() {
   const token = session?.access_token ?? null;
 
   // Fetch du foyer côté serveur (graceful — pas de crash si API down)
-  let householdData: HouseholdResponse | null = null;
+  let householdData: HouseholdAPIResponse | null = null;
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "https://meal-planner-saas-production.up.railway.app";
 
   if (token && apiBaseUrl) {
@@ -65,10 +43,10 @@ export default async function AccountPage() {
       });
 
       if (res.ok) {
-        const raw = (await res.json()) as HouseholdResponse;
+        const raw = (await res.json()) as HouseholdAPIResponse;
         // Defensif : s'assurer que les membres ont des tableaux valides
         if (raw?.members && Array.isArray(raw.members)) {
-          raw.members = raw.members.map((m) => ({
+          raw.members = raw.members.map((m: HouseholdMemberAPI) => ({
             ...m,
             diet_tags: Array.isArray(m.diet_tags) ? m.diet_tags : [],
             allergies: Array.isArray(m.allergies) ? m.allergies : [],
@@ -76,9 +54,16 @@ export default async function AccountPage() {
           }));
         }
         householdData = raw;
+      } else {
+        // Erreur HTTP non-2xx — logger pour le debugging serveur
+        console.error(
+          `[AccountPage] GET /households/me — HTTP ${res.status}`,
+          { userId: user.id },
+        );
       }
-    } catch {
-      // Backend non disponible — afficher le profil sans les données foyer
+    } catch (err) {
+      // Backend non disponible ou timeout — logger pour le debugging serveur
+      console.error("[AccountPage] GET /households/me — fetch error", err);
     }
   }
 

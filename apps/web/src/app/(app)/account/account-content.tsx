@@ -9,6 +9,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Loader2, LogOut, Settings, CreditCard, User, Users, ChevronRight } from "lucide-react";
 import { createBrowserClient } from "@/lib/supabase/client";
+import type { HouseholdAPIResponse } from "@/lib/api/types";
 
 interface AccountUser {
   id: string;
@@ -17,31 +18,9 @@ interface AccountUser {
   user_metadata?: Record<string, string>;
 }
 
-interface HouseholdMemberAPI {
-  id: string;
-  display_name: string;
-  is_child: boolean;
-  birth_date: string | null;
-  diet_tags: string[];
-  allergies: string[];
-  dislikes: string[];
-}
-
-interface HouseholdAPI {
-  id: string;
-  owner_id: string;
-  name: string;
-  drive_provider: string | null;
-}
-
-interface HouseholdData {
-  household: HouseholdAPI;
-  members: HouseholdMemberAPI[];
-}
-
 interface AccountContentProps {
   user: AccountUser;
-  householdData: HouseholdData | null;
+  householdData: HouseholdAPIResponse | null;
 }
 
 export function AccountContent({ user, householdData }: AccountContentProps) {
@@ -162,6 +141,12 @@ export function AccountContent({ user, householdData }: AccountContentProps) {
           <p className="text-sm text-neutral-400">
             Données du foyer non disponibles — vérifiez votre connexion.
           </p>
+          <Link
+            href="/account"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+          >
+            Réessayer
+          </Link>
         </section>
       )}
 

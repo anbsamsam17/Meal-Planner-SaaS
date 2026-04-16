@@ -26,6 +26,7 @@ from sqlalchemy import text
 from src.api.v1.schemas.household import (
     HouseholdCreate,
     HouseholdRead,
+    HouseholdUpdate,
     MemberCreate,
     MemberPreferenceCreate,
     MemberPreferenceRead,
@@ -240,6 +241,206 @@ async def get_my_household(
 
     household_id = row[0]
     return await _get_household_by_id(db_session, household_id)
+
+
+# ---- PATCH /households/me ----
+
+@router.patch(
+    "/me",
+    summary="Mettre à jour mon foyer",
+    description=(
+        "Met à jour les informations du foyer de l'utilisateur authentifié. "
+        "Seuls les champs fournis dans le body sont modifiés (partial update). "
+        "Champs modifiables : `name`, `drive_provider`. "
+        f"Rate limit : {LIMIT_USER_WRITE} (écriture)."
+    ),
+    response_model=HouseholdRead,
+    responses={
+        status.HTTP_404_NOT_FOUND: {"description": "L'utilisateur n'appartient à aucun foyer."},
+        status.HTTP_403_FORBIDDEN: {"description": "Seul le owner peut modifier le foyer."},
+        status.HTTP_401_UNAUTHORIZED: {"description": "Authentification requise."},
+        429: {"description": "Rate limit dépassé."},
+    },
+)
+@limiter.limit(LIMIT_USER_WRITE, key_func=get_user_key)
+async def update_my_household(
+    request: Request,
+    body: HouseholdUpdate,
+    user: TokenPayload = Depends(get_current_user_dep),
+) -> Any:
+    """
+    Met à jour partiellement le foyer de l'utilisateur authentifié.
+
+    Seul le owner du foyer peut modifier les informations du foyer.
+    La mise à jour est idempotente : appeler deux fois avec le même body
+    produit le même résultat.
+
+    Args:
+        body: Champs à mettre à jour (tous optionnels).
+        request: Requête FastAPI.
+        user: Payload JWT.
+
+    Returns:
+        HouseholdRead avec les données mises à jour.
+    """
+    db_session = await _get_db(request)
+
+    # Vérifie qu'au moins un champ est fourni (body non vide)
+    updates = body.model_dump(exclude_none=True)
+    if not updates:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Au moins un champ doit être fourni pour la mise à jour.",
+        )
+
+    async with db_session() as session:
+        # Récupérer le foyer + vérifier que l'utilisateur est owner
+        role_result = await session.execute(
+            text(
+                """
+                SELECT hm.role, hm.household_id
+                FROM household_members hm
+                WHERE hm.supabase_user_id = :user_id
+                LIMIT 1
+                """
+            ),
+            {"user_id": user.user_id},
+        )
+        owner_row = role_result.fetchone()
+
+        if owner_row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Vous n'appartenez à aucun foyer.",
+            )
+
+        if owner_row[0] != "owner":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Seul le owner du foyer peut modifier les informations du foyer.",
+            )
+
+        household_id = owner_row[1]
+
+        # Construction dynamique des clauses SET — uniquement les champs fournis
+        # Utilise des paramètres nommés pour éviter toute injection SQL
+        set_clauses = []
+        params: dict[str, Any] = {"household_id": str(household_id)}
+
+        if "name" in updates:
+            set_clauses.append("name = :name")
+            params["name"] = updates["name"]
+
+        if "drive_provider" in updates:
+            set_clauses.append("drive_provider = :drive_provider")
+            params["drive_provider"] = updates["drive_provider"]
+
+        set_clauses.append("updated_at = NOW()")
+
+        await session.execute(
+            text(
+                f"UPDATE households SET {', '.join(set_clauses)} WHERE id = :household_id"
+            ),
+            params,
+        )
+        await session.commit()
+
+        logger.info(
+            "household_updated",
+            household_id=str(household_id),
+            updated_fields=list(updates.keys()),
+            by_user=user.user_id,
+        )
+
+    return await _get_household_by_id(db_session, household_id)
+
+
+# ---- DELETE /households/me ----
+
+@router.delete(
+    "/me",
+    summary="Supprimer mon foyer",
+    description=(
+        "Supprime définitivement le foyer de l'utilisateur authentifié et toutes ses données "
+        "(membres, préférences, fridge_items, etc.) via CASCADE. "
+        "Action irréversible — réservée au owner. "
+        f"Rate limit : {LIMIT_USER_WRITE} (écriture)."
+    ),
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        status.HTTP_204_NO_CONTENT: {"description": "Foyer supprimé avec succès."},
+        status.HTTP_404_NOT_FOUND: {"description": "L'utilisateur n'appartient à aucun foyer."},
+        status.HTTP_403_FORBIDDEN: {"description": "Seul le owner peut supprimer le foyer."},
+        status.HTTP_401_UNAUTHORIZED: {"description": "Authentification requise."},
+        429: {"description": "Rate limit dépassé."},
+    },
+)
+@limiter.limit(LIMIT_USER_WRITE, key_func=get_user_key)
+async def delete_my_household(
+    request: Request,
+    user: TokenPayload = Depends(get_current_user_dep),
+) -> None:
+    """
+    Supprime définitivement le foyer et toutes ses données associées.
+
+    La suppression est propagée via CASCADE au niveau base de données :
+    household_members, member_preferences, fridge_items, meal_plans, etc.
+    Cette opération est irréversible.
+
+    Seul le owner du foyer peut déclencher cette action.
+
+    Args:
+        request: Requête FastAPI.
+        user: Payload JWT.
+
+    Returns:
+        204 No Content si la suppression a réussi.
+    """
+    db_session = await _get_db(request)
+
+    async with db_session() as session:
+        # Vérifier que l'utilisateur est owner de son foyer
+        role_result = await session.execute(
+            text(
+                """
+                SELECT hm.role, hm.household_id
+                FROM household_members hm
+                WHERE hm.supabase_user_id = :user_id
+                LIMIT 1
+                """
+            ),
+            {"user_id": user.user_id},
+        )
+        owner_row = role_result.fetchone()
+
+        if owner_row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Vous n'appartenez à aucun foyer.",
+            )
+
+        if owner_row[0] != "owner":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Seul le owner du foyer peut le supprimer.",
+            )
+
+        household_id = owner_row[1]
+
+        # Suppression hard delete — la CASCADE DB propage la suppression
+        # sur : household_members, member_preferences, member_taste_vectors,
+        # fridge_items, meal_plans, subscriptions, etc.
+        await session.execute(
+            text("DELETE FROM households WHERE id = :household_id"),
+            {"household_id": str(household_id)},
+        )
+        await session.commit()
+
+        logger.info(
+            "household_deleted",
+            household_id=str(household_id),
+            by_user=user.user_id,
+        )
 
 
 # ---- POST /households/me/members ----
@@ -476,15 +677,15 @@ async def update_member_preferences(
 # ---- Helpers privés ----
 
 async def _get_household_by_id(db_session: Any, household_id: Any) -> HouseholdRead:
-    """Récupère un foyer complet avec ses membres et préférences."""
+    """Récupère un foyer complet avec ses membres, préférences, drive_provider et owner_id."""
     async with db_session() as session:
         result = await session.execute(
             text(
                 """
                 SELECT
-                    h.id, h.name, h.plan, h.created_at, h.updated_at,
+                    h.id, h.name, h.plan, h.drive_provider, h.created_at, h.updated_at,
                     hm.id AS member_id, hm.role, hm.display_name,
-                    hm.is_child, hm.birth_date,
+                    hm.is_child, hm.birth_date, hm.supabase_user_id,
                     hm.created_at AS member_created_at,
                     hm.updated_at AS member_updated_at,
                     mp.id AS pref_id, mp.diet_tags, mp.allergies,
@@ -510,10 +711,14 @@ async def _get_household_by_id(db_session: Any, household_id: Any) -> HouseholdR
     # Construction de la réponse (dénormalisation des jointures)
     household_data = dict(rows[0])
     members = []
+    owner_id = None
 
     for row in rows:
         if row.get("member_id") is None:
             continue
+        # Le owner_id correspond au supabase_user_id du membre ayant le rôle 'owner'
+        if row.get("role") == "owner" and row.get("supabase_user_id"):
+            owner_id = row["supabase_user_id"]
         prefs = None
         if row.get("pref_id"):
             prefs = MemberPreferenceRead(
@@ -544,6 +749,8 @@ async def _get_household_by_id(db_session: Any, household_id: Any) -> HouseholdR
         id=household_data["id"],
         name=household_data["name"],
         plan=household_data["plan"],
+        drive_provider=household_data.get("drive_provider"),
+        owner_id=owner_id,
         created_at=household_data["created_at"],
         updated_at=household_data["updated_at"],
         members=members,

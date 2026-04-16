@@ -25,6 +25,7 @@ from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
     Integer,
+    String,
     Text,
     UniqueConstraint,
 )
@@ -59,6 +60,12 @@ class Household(Base):
         server_default="starter",
     )
     stripe_customer_id: Mapped[str | None] = mapped_column(Text)
+    drive_provider: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
+        default=None,
+        comment="Fournisseur de drive préféré : 'leclerc', 'auchan', 'carrefour', 'intermarche', 'other', ou null.",
+    )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,

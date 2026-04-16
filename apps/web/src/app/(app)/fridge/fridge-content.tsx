@@ -2,14 +2,15 @@
 // apps/web/src/app/(app)/fridge/fridge-content.tsx
 // Contenu interactif du frigo — Client Component
 // Phase 2 — liste items, dialog ajout avec autocomplete, suggestions recettes
+// FIX (2026-04-16) : adapter l'affichage des suggestions au format plat backend
+//   list[RecipeSuggestion] au lieu de { recipes, matched_ingredients }
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Plus, Refrigerator, Sparkles, X, Search } from "lucide-react";
+import { Plus, Refrigerator, Sparkles, X, Search, Clock, AlertTriangle } from "lucide-react";
 import { useFridge, useAddFridgeItem, useRemoveFridgeItem, useFridgeSuggestions } from "@/hooks/use-fridge";
 import { FridgeItemCard } from "@/components/fridge/fridge-item";
-import { RecipeCard } from "@/components/recipe/recipe-card";
 import { searchIngredients, type IngredientSearchResult } from "@/lib/api/endpoints";
-import type { FridgeItemCreate, FridgeItemUnit } from "@/lib/api/types";
+import type { FridgeItemCreate, FridgeItemUnit, RecipeSuggestion } from "@/lib/api/types";
 
 const UNITS: FridgeItemUnit[] = [
   "g", "kg", "ml", "L", "pièce", "tranche", "botte", "sachet", "boîte", "pot", "autre",
@@ -293,6 +294,74 @@ function AddItemDialog({ open, onClose, onSubmit, isSubmitting }: AddItemDialogP
   );
 }
 
+// Mini-composant : carte d'une suggestion de recette basée sur le frigo.
+// Affiche les infos disponibles depuis RecipeSuggestion (format plat backend).
+// Pas d'image — les suggestions ne contiennent pas de photo_url.
+function RecipeSuggestionCard({ suggestion }: { suggestion: RecipeSuggestion }) {
+  // Convertir difficulté numérique en label lisible
+  function difficultyLabel(d: number | null): string {
+    if (d == null) return "";
+    if (d <= 2) return "Facile";
+    if (d <= 3) return "Moyen";
+    return "Difficile";
+  }
+
+  return (
+    <a
+      href={`/recipes/${suggestion.recipe_id}`}
+      className="group flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+    >
+      {/* Titre + badge périmé bientôt */}
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-semibold leading-snug text-neutral-900 group-hover:text-primary-700">
+          {suggestion.title}
+        </p>
+        {suggestion.has_expiring_items && (
+          <span
+            title="Contient des ingrédients qui expirent bientôt"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"
+          >
+            <AlertTriangle className="h-3 w-3" aria-hidden />
+            Urgent
+          </span>
+        )}
+      </div>
+
+      {/* Méta : temps + difficulté */}
+      <div className="flex items-center gap-3 text-xs text-neutral-500">
+        {suggestion.total_time_min != null && (
+          <span className="inline-flex items-center gap-1">
+            <Clock className="h-3.5 w-3.5" aria-hidden />
+            {suggestion.total_time_min} min
+          </span>
+        )}
+        {suggestion.difficulty != null && (
+          <span>{difficultyLabel(suggestion.difficulty)}</span>
+        )}
+      </div>
+
+      {/* Ingrédients matchés */}
+      {suggestion.matching_ingredients.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {suggestion.matching_ingredients.slice(0, 4).map((ing) => (
+            <span
+              key={ing}
+              className="rounded-full bg-primary-50 px-2 py-0.5 text-xs text-primary-700"
+            >
+              {ing}
+            </span>
+          ))}
+          {suggestion.matching_ingredients.length > 4 && (
+            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-500">
+              +{suggestion.matching_ingredients.length - 4}
+            </span>
+          )}
+        </div>
+      )}
+    </a>
+  );
+}
+
 export function FridgeContent() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
@@ -394,27 +463,40 @@ export function FridgeContent() {
             </button>
           </div>
 
-          {/* Suggestions recettes */}
-          {suggestionsMutation.isSuccess && suggestionsMutation.data.recipes.length > 0 && (
+          {/* Suggestions recettes — format plat backend list[RecipeSuggestion] */}
+          {suggestionsMutation.isSuccess && suggestionsMutation.data.length > 0 && (
             <section className="mt-8" aria-label="Suggestions basées sur le frigo">
               <h2 className="mb-3 text-base font-semibold text-neutral-900">
                 Recettes suggérées
-                <span className="ml-2 text-xs font-normal text-neutral-500">
-                  basées sur :{" "}
-                  {suggestionsMutation.data.matched_ingredients
-                    .slice(0, 3)
-                    .join(", ")}
-                  {suggestionsMutation.data.matched_ingredients.length > 3 && "..."}
-                </span>
+                {/* Afficher un résumé des ingrédients utilisés (dédupliqués sur toutes les suggestions) */}
+                {(() => {
+                  const allIngredients = Array.from(
+                    new Set(suggestionsMutation.data.flatMap((s) => s.matching_ingredients))
+                  );
+                  if (allIngredients.length === 0) return null;
+                  return (
+                    <span className="ml-2 text-xs font-normal text-neutral-500">
+                      basées sur : {allIngredients.slice(0, 3).join(", ")}
+                      {allIngredients.length > 3 && "..."}
+                    </span>
+                  );
+                })()}
               </h2>
               <ul className="grid gap-4 sm:grid-cols-2" role="list">
-                {suggestionsMutation.data.recipes.slice(0, 5).map((recipe) => (
-                  <li key={recipe.id}>
-                    <RecipeCard recipe={recipe} variant="md" />
+                {suggestionsMutation.data.map((suggestion) => (
+                  <li key={suggestion.recipe_id}>
+                    <RecipeSuggestionCard suggestion={suggestion} />
                   </li>
                 ))}
               </ul>
             </section>
+          )}
+
+          {/* État vide après suggestions — frigo non vide mais aucune recette trouvée */}
+          {suggestionsMutation.isSuccess && suggestionsMutation.data.length === 0 && (
+            <p className="mt-6 text-center text-sm text-neutral-500">
+              Aucune recette trouvée avec vos ingrédients actuels.
+            </p>
           )}
         </>
       )}

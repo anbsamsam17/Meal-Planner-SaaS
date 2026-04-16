@@ -40,6 +40,7 @@ interface HouseholdRaw {
   id: string;
   name: string;
   plan: string;
+  drive_provider: string | null;
   created_at: string;
   updated_at: string;
   members: MemberRaw[];
@@ -93,7 +94,8 @@ function normalizeHousehold(raw: HouseholdRaw): HouseholdResponse {
     ? {
         cooking_time_max: ownerPrefs.cooking_time_max ?? 45,
         budget_pref: (ownerPrefs.budget_pref as HouseholdPreferences["budget_pref"]) ?? null,
-        drive_provider: null, // drive_provider est sur le foyer, pas sur les prefs membre
+        // drive_provider est sur le foyer (raw.drive_provider), pas sur les prefs membre
+        drive_provider: raw.drive_provider ?? null,
       }
     : null;
 
@@ -114,7 +116,7 @@ function normalizeHousehold(raw: HouseholdRaw): HouseholdResponse {
       id: String(raw.id),
       name: raw.name,
       plan: raw.plan,
-      drive_provider: null, // Le backend ne stocke pas drive_provider dans households pour l'instant
+      drive_provider: raw.drive_provider ?? null,
       created_at: raw.created_at,
       updated_at: raw.updated_at,
     },

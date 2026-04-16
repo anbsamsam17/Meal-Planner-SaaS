@@ -23,6 +23,7 @@ const PROTECTED_ROUTES = [
   // et reçoit un 401 de l'API — mauvaise UX. Redirect vers /login avec param `redirect`.
   "/onboarding",
   "/generating",
+  "/account",
 ];
 
 // Routes publiques — accessibles sans authentification (liste de référence pour documentation)

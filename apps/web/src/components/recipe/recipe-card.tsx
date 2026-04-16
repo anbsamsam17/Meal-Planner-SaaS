@@ -3,11 +3,13 @@
 // Photo portrait grande, badge temps terracotta overlay haut-droite,
 // rating étoile dorée overlay bas-gauche, titre Noto Serif, catégorie small caps
 // Refonte 2026-04-12 : badge coût estimé + temps préparation sous le titre
+// 2026-04-16 : indicateur favori (coeur terracotta overlay haut-gauche, lecture seule)
 "use client";
 
 import Image from "next/image";
 import Link from "next/link";
-import { Clock } from "lucide-react";
+import { Clock, Heart } from "lucide-react";
+import { useIsFavorite } from "@/hooks/use-favorites";
 import { cn } from "@/lib/utils";
 import type { Recipe } from "@/lib/api/types";
 
@@ -77,6 +79,8 @@ export function RecipeCard({
   const costBadge = getCostBadge(recipe);
   // rating_average est 1.0–5.0, on l'affiche directement avec .toFixed(1)
   const rating = recipe.rating_average != null ? Number(recipe.rating_average).toFixed(1) : null;
+  // Indicateur favori — lecture seule depuis le cache TanStack Query
+  const isFavorite = useIsFavorite(recipe.id);
 
   return (
     <Link href={`/recipes/${recipe.id}`} className={cn("group block", className)}>
@@ -95,6 +99,16 @@ export function RecipeCard({
         {mealLabel && (
           <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#201a19] backdrop-blur-sm shadow-sm">
             {mealLabel}
+          </span>
+        )}
+
+        {/* Indicateur favori — haut-gauche (si pas de mealLabel), lecture seule */}
+        {!mealLabel && isFavorite && (
+          <span
+            className="absolute left-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-sm backdrop-blur-sm"
+            aria-label="Recette en favori"
+          >
+            <Heart className="h-3.5 w-3.5 fill-[#E2725B] text-[#E2725B]" aria-hidden="true" />
           </span>
         )}
 

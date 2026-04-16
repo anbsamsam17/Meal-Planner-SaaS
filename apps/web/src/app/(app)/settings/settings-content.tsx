@@ -131,20 +131,36 @@ export function SettingsContent() {
         },
       );
 
+      // Guard : s'assurer que le foyer existe avant de PATCH /households/me
+      if (!household?.household?.id) {
+        toast.error("Foyer introuvable", {
+          description: "Impossible de sauvegarder le drive — foyer non configuré.",
+        });
+        setIsSaving(false);
+        return;
+      }
+
       // Sauvegarder le drive provider sur le household
       const driveValue = form.driveProvider === "none" ? null : form.driveProvider;
-      await apiClient.patch("/api/v1/households/me", {
-        drive_provider: driveValue,
-      });
+      try {
+        await apiClient.patch("/api/v1/households/me", {
+          drive_provider: driveValue,
+        });
+      } catch (driveErr) {
+        // Erreur spécifique au PATCH /households/me — logguer et afficher un message clair
+        const msg = driveErr instanceof Error ? driveErr.message : "Erreur inconnue";
+        toast.error("Impossible de sauvegarder le drive", { description: msg });
+        setIsSaving(false);
+        return;
+      }
 
       toast.success("Préférences sauvegardées !", {
         description: "Vos paramètres ont été mis à jour.",
       });
     } catch (err) {
-      // Le client API affiche déjà un toast pour les erreurs HTTP
-      if (err instanceof Error && !err.message.includes("Erreur API")) {
-        toast.error("Erreur de sauvegarde", { description: err.message });
-      }
+      // Erreur sur le PATCH des préférences membre
+      const msg = err instanceof Error ? err.message : "Erreur inconnue";
+      toast.error("Erreur de sauvegarde", { description: msg });
     } finally {
       setIsSaving(false);
     }

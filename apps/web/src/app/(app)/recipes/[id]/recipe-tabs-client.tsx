@@ -1,12 +1,14 @@
 // apps/web/src/app/(app)/recipes/[id]/recipe-tabs-client.tsx
 // Client Component -- Tabs Radix (Ingredients / Instructions / Nutrition) + RatingModal
 // Redesign v3 : checkboxes ingredients, numbered instructions terracotta, nutrition badges
+// 2026-04-16 : bouton favori (Heart) ajouté à côté de "Noter cette recette"
 "use client";
 
 import { useState } from "react";
 import * as RadixTabs from "@radix-ui/react-tabs";
-import { Star } from "lucide-react";
+import { Heart, Star } from "lucide-react";
 import { RatingModal } from "@/components/recipe/rating-modal";
+import { useIsFavorite, useToggleFavorite } from "@/hooks/use-favorites";
 import { cn } from "@/lib/utils";
 import type { Recipe, Ingredient, Instruction } from "@/lib/api/types";
 
@@ -17,6 +19,9 @@ interface RecipeTabsClientProps {
 export function RecipeTabsClient({ recipe }: RecipeTabsClientProps) {
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+
+  const isFavorite = useIsFavorite(recipe.id);
+  const toggleFavoriteMutation = useToggleFavorite();
 
   function toggleIngredient(id: string) {
     setCheckedIds((prev) => {
@@ -49,15 +54,45 @@ export function RecipeTabsClient({ recipe }: RecipeTabsClientProps) {
 
   return (
     <>
-      {/* Bouton noter cette recette */}
-      <button
-        type="button"
-        onClick={() => setIsRatingModalOpen(true)}
-        className="mb-6 flex items-center gap-1.5 text-sm text-[#857370] transition-colors hover:text-[#E2725B] dark:text-neutral-400 dark:hover:text-[#E2725B]"
-      >
-        <Star className="h-4 w-4" aria-hidden="true" />
-        Noter cette recette
-      </button>
+      {/* Barre d'actions : noter + mettre en favori */}
+      <div className="mb-6 flex items-center gap-4">
+        <button
+          type="button"
+          onClick={() => setIsRatingModalOpen(true)}
+          className="flex items-center gap-1.5 text-sm text-[#857370] transition-colors hover:text-[#E2725B] dark:text-neutral-400 dark:hover:text-[#E2725B]"
+        >
+          <Star className="h-4 w-4" aria-hidden="true" />
+          Noter cette recette
+        </button>
+
+        {/* Bouton favori — filled si déjà en favori */}
+        <button
+          type="button"
+          disabled={toggleFavoriteMutation.isPending}
+          onClick={() =>
+            toggleFavoriteMutation.mutate({ recipeId: recipe.id, isFavorite })
+          }
+          aria-label={isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}
+          aria-pressed={isFavorite}
+          className={cn(
+            "flex items-center gap-1.5 text-sm transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2725B]/40",
+            "disabled:opacity-50",
+            isFavorite
+              ? "text-[#E2725B] hover:text-[#c45e4a] dark:text-[#E2725B]"
+              : "text-[#857370] hover:text-[#E2725B] dark:text-neutral-400 dark:hover:text-[#E2725B]",
+          )}
+        >
+          <Heart
+            className={cn(
+              "h-4 w-4 transition-all",
+              isFavorite ? "fill-[#E2725B] text-[#E2725B]" : "fill-none",
+            )}
+            aria-hidden="true"
+          />
+          {isFavorite ? "En favori" : "Ajouter aux favoris"}
+        </button>
+      </div>
 
       {/* Tabs Radix */}
       <RadixTabs.Root defaultValue="ingredients">

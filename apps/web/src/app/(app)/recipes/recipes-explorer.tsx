@@ -3,12 +3,14 @@
 // Explorer de recettes avec filtres avancés — Client Component
 // Phase 2 — barre de recherche arrondie premium, pills filtres, grid portrait 2→3 col
 // Refonte 2026-04-12 : pagination numérotée, filtres corrigés, cards enrichies, FR complet
+// 2026-04-16 : ajout onglet "Mes Favoris" avec useFavoriteRecipes
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, SlidersHorizontal, Link2 } from "lucide-react";
+import { Heart, Search, SlidersHorizontal, Link2 } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { searchRecipesAdvanced } from "@/lib/api/endpoints";
+import { useFavoriteRecipes } from "@/hooks/use-favorites";
 import type { RecipeFilters, PaginatedResponse } from "@/lib/api/types";
 import type { Recipe } from "@/lib/api/types";
 import { RecipeCard } from "@/components/recipe/recipe-card";
@@ -97,6 +99,78 @@ function Pagination({ page, totalPages, onChange }: PaginationProps) {
   );
 }
 
+// --- Composant onglet Mes Favoris ---
+
+function FavoritesGrid() {
+  const [favPage, setFavPage] = useState(1);
+  const { data, isLoading, isError } = useFavoriteRecipes(favPage);
+  const favorites: Recipe[] = data?.data ?? [];
+  const totalCount = data?.total ?? 0;
+  const totalPages = Math.ceil(totalCount / (data?.per_page ?? 20));
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-3 mt-6">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="aspect-[4/5] animate-pulse rounded-2xl bg-[#857370]/10"
+            aria-hidden
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="mt-6 rounded-2xl border border-red-100 bg-red-50 p-8 text-center">
+        <p className="text-sm text-red-700">
+          Impossible de charger vos favoris. Vérifiez votre connexion.
+        </p>
+      </div>
+    );
+  }
+
+  if (favorites.length === 0) {
+    return (
+      <div className="mt-6 rounded-2xl border border-dashed border-[#857370]/30 bg-white py-16 text-center">
+        <Heart
+          className="mx-auto mb-4 h-10 w-10 text-[#857370]/40"
+          aria-hidden
+        />
+        <p className="text-sm font-medium text-[#201a19]">
+          Vous n&apos;avez pas encore de recettes favorites
+        </p>
+        <p className="mt-1 text-xs text-[#857370]">
+          Cliquez sur le bouton dans une recette pour l&apos;ajouter à vos favoris
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <p className="mt-4 text-sm text-[#857370]">
+        <span className="font-semibold text-[#201a19]">{totalCount}</span>{" "}
+        recette{totalCount !== 1 ? "s" : ""} en favori
+      </p>
+      <ul className="mt-4 grid grid-cols-2 gap-4 xl:grid-cols-3">
+        {favorites.map((recipe, index) => (
+          <li key={recipe.id}>
+            <RecipeCard recipe={recipe} priority={index < 4} />
+          </li>
+        ))}
+      </ul>
+      <Pagination
+        page={favPage}
+        totalPages={totalPages}
+        onChange={setFavPage}
+      />
+    </>
+  );
+}
+
 // --- Composant principal ---
 
 export function RecipesExplorer() {
@@ -105,6 +179,7 @@ export function RecipesExplorer() {
   const [activeQuickFilter, setActiveQuickFilter] = useState<QuickFilterKey | null>(null);
   const [page, setPage] = useState(1);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"all" | "favorites">("all");
 
   const debouncedQuery = useDebounce(searchQuery, 350);
 
@@ -207,141 +282,185 @@ export function RecipesExplorer() {
       </div>
 
       {/* =========================================
-          BARRE DE RECHERCHE
+          TOGGLE ONGLETS — Toutes / Mes Favoris
       ========================================= */}
-      <div className="mt-6 relative">
-        <label htmlFor="recipe-search" className="sr-only">
-          Rechercher une recette
-        </label>
-        <Search
-          className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#857370]"
-          aria-hidden
-        />
-        <input
-          id="recipe-search"
-          type="search"
-          value={searchQuery}
-          onChange={(e) => {
-            setSearchQuery(e.target.value);
-            setPage(1);
-          }}
-          placeholder="Rechercher ingrédients, cuisines..."
-          className="w-full rounded-full border-0 bg-[#E2725B]/5 py-3.5 pl-12 pr-4 text-sm text-[#201a19] placeholder:text-[#857370]/60 focus:outline-none focus:ring-2 focus:ring-[#E2725B]/30 transition-all duration-200"
-        />
-      </div>
-
-      {/* =========================================
-          PILLS FILTRES RAPIDES — 4 pills + bouton filtres
-      ========================================= */}
-      <div className="mt-4 flex gap-2 overflow-x-auto hide-scrollbar pb-2">
+      <div className="mt-6 flex gap-2">
         <button
           type="button"
-          onClick={() => {
-            setActiveQuickFilter(null);
-            setFilters(DEFAULT_FILTERS);
-            setPage(1);
-          }}
-          className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#E2725B] px-4 py-2 text-xs font-medium text-white whitespace-nowrap transition-opacity duration-200 hover:opacity-90"
+          onClick={() => setActiveTab("all")}
+          className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition-colors duration-200 ${
+            activeTab === "all"
+              ? "bg-[#E2725B] text-white"
+              : "border border-[#857370]/20 bg-white text-[#201a19] hover:border-[#E2725B]/40"
+          }`}
+          aria-pressed={activeTab === "all"}
         >
-          <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-          Tous les filtres
+          Toutes les recettes
         </button>
-
-        {QUICK_FILTERS.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            onClick={() => handleQuickFilter(f.key)}
-            className={`shrink-0 rounded-full border px-4 py-2 text-xs font-medium whitespace-nowrap transition-colors duration-200 ${
-              activeQuickFilter === f.key
-                ? "border-[#E2725B] bg-[#E2725B] text-white"
-                : "border-[#857370]/20 bg-white text-[#201a19] hover:border-[#E2725B]/40"
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
+        <button
+          type="button"
+          onClick={() => setActiveTab("favorites")}
+          className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition-colors duration-200 ${
+            activeTab === "favorites"
+              ? "bg-[#E2725B] text-white"
+              : "border border-[#857370]/20 bg-white text-[#201a19] hover:border-[#E2725B]/40"
+          }`}
+          aria-pressed={activeTab === "favorites"}
+        >
+          <Heart
+            className={`h-4 w-4 ${activeTab === "favorites" ? "fill-white text-white" : "text-[#E2725B]"}`}
+            aria-hidden="true"
+          />
+          Mes Favoris
+        </button>
       </div>
 
       {/* =========================================
-          LAYOUT : filtres sidebar + grille résultats
+          CONTENU ONGLET FAVORIS
       ========================================= */}
-      <div className="mt-6 flex gap-6">
-        {/* Filtres avancés — sidebar desktop / sheet mobile */}
-        <RecipeFiltersPanel
-          filters={filters}
-          onChange={handleFiltersChange}
-          resultCount={totalCount}
-        />
+      {activeTab === "favorites" && (
+        <div className="mt-2">
+          <FavoritesGrid />
+        </div>
+      )}
 
-        {/* Zone résultats */}
-        <div className="flex-1 min-w-0">
-          {/* Compteur résultats */}
-          <div className="mb-4">
-            <p className="text-sm text-[#857370]">
-              {isLoading ? (
-                "Chargement..."
-              ) : isError ? (
-                "Erreur de chargement"
-              ) : (
-                <>
-                  <span className="font-semibold text-[#201a19]">{totalCount}</span>{" "}
-                  recette{totalCount !== 1 ? "s" : ""}
-                </>
-              )}
-            </p>
+      {/* =========================================
+          SECTION "TOUTES LES RECETTES" — masquée en mode favoris
+      ========================================= */}
+      {activeTab === "all" && (
+        <>
+          {/* Barre de recherche */}
+          <div className="mt-4 relative">
+            <label htmlFor="recipe-search" className="sr-only">
+              Rechercher une recette
+            </label>
+            <Search
+              className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#857370]"
+              aria-hidden
+            />
+            <input
+              id="recipe-search"
+              type="search"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Rechercher ingrédients, cuisines..."
+              className="w-full rounded-full border-0 bg-[#E2725B]/5 py-3.5 pl-12 pr-4 text-sm text-[#201a19] placeholder:text-[#857370]/60 focus:outline-none focus:ring-2 focus:ring-[#E2725B]/30 transition-all duration-200"
+            />
           </div>
 
-          {/* Grille de recettes */}
-          {isLoading ? (
-            <div className="grid grid-cols-2 gap-4 xl:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="aspect-[4/5] animate-pulse rounded-2xl bg-[#857370]/10"
-                  aria-hidden
-                />
-              ))}
-            </div>
-          ) : isError ? (
-            <div className="rounded-2xl border border-red-100 bg-red-50 p-8 text-center">
-              <p className="text-sm text-red-700">
-                Impossible de charger les recettes. Vérifiez votre connexion.
-              </p>
-            </div>
-          ) : recipes.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[#857370]/30 bg-white py-16 text-center">
-              <SlidersHorizontal
-                className="mx-auto mb-4 h-10 w-10 text-[#857370]/40"
-                aria-hidden
-              />
-              <p className="text-sm font-medium text-[#201a19]">
-                Aucune recette ne correspond à vos filtres
-              </p>
-              <p className="mt-1 text-xs text-[#857370]">
-                Essayez d&apos;élargir vos critères de recherche
-              </p>
-            </div>
-          ) : (
-            <>
-              <ul className="grid grid-cols-2 gap-4 xl:grid-cols-3">
-                {recipes.map((recipe, index) => (
-                  <li key={recipe.id}>
-                    <RecipeCard recipe={recipe} priority={index < 4} />
-                  </li>
-                ))}
-              </ul>
+          {/* Pills filtres rapides */}
+          <div className="mt-4 flex gap-2 overflow-x-auto hide-scrollbar pb-2">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveQuickFilter(null);
+                setFilters(DEFAULT_FILTERS);
+                setPage(1);
+              }}
+              className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#E2725B] px-4 py-2 text-xs font-medium text-white whitespace-nowrap transition-opacity duration-200 hover:opacity-90"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+              Tous les filtres
+            </button>
 
-              {/* Pagination numérotée */}
-              <Pagination
-                page={page}
-                totalPages={totalPages}
-                onChange={handlePageChange}
-              />
-            </>
-          )}
-        </div>
-      </div>
+            {QUICK_FILTERS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => handleQuickFilter(f.key)}
+                className={`shrink-0 rounded-full border px-4 py-2 text-xs font-medium whitespace-nowrap transition-colors duration-200 ${
+                  activeQuickFilter === f.key
+                    ? "border-[#E2725B] bg-[#E2725B] text-white"
+                    : "border-[#857370]/20 bg-white text-[#201a19] hover:border-[#E2725B]/40"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Layout : filtres sidebar + grille résultats */}
+          <div className="mt-6 flex gap-6">
+            {/* Filtres avancés — sidebar desktop / sheet mobile */}
+            <RecipeFiltersPanel
+              filters={filters}
+              onChange={handleFiltersChange}
+              resultCount={totalCount}
+            />
+
+            {/* Zone résultats */}
+            <div className="flex-1 min-w-0">
+              {/* Compteur résultats */}
+              <div className="mb-4">
+                <p className="text-sm text-[#857370]">
+                  {isLoading ? (
+                    "Chargement..."
+                  ) : isError ? (
+                    "Erreur de chargement"
+                  ) : (
+                    <>
+                      <span className="font-semibold text-[#201a19]">{totalCount}</span>{" "}
+                      recette{totalCount !== 1 ? "s" : ""}
+                    </>
+                  )}
+                </p>
+              </div>
+
+              {/* Grille de recettes */}
+              {isLoading ? (
+                <div className="grid grid-cols-2 gap-4 xl:grid-cols-3">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="aspect-[4/5] animate-pulse rounded-2xl bg-[#857370]/10"
+                      aria-hidden
+                    />
+                  ))}
+                </div>
+              ) : isError ? (
+                <div className="rounded-2xl border border-red-100 bg-red-50 p-8 text-center">
+                  <p className="text-sm text-red-700">
+                    Impossible de charger les recettes. Vérifiez votre connexion.
+                  </p>
+                </div>
+              ) : recipes.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-[#857370]/30 bg-white py-16 text-center">
+                  <SlidersHorizontal
+                    className="mx-auto mb-4 h-10 w-10 text-[#857370]/40"
+                    aria-hidden
+                  />
+                  <p className="text-sm font-medium text-[#201a19]">
+                    Aucune recette ne correspond à vos filtres
+                  </p>
+                  <p className="mt-1 text-xs text-[#857370]">
+                    Essayez d&apos;élargir vos critères de recherche
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <ul className="grid grid-cols-2 gap-4 xl:grid-cols-3">
+                    {recipes.map((recipe, index) => (
+                      <li key={recipe.id}>
+                        <RecipeCard recipe={recipe} priority={index < 4} />
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* Pagination numérotée */}
+                  <Pagination
+                    page={page}
+                    totalPages={totalPages}
+                    onChange={handlePageChange}
+                  />
+                </>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Modal import URL */}
       <ImportUrlModal

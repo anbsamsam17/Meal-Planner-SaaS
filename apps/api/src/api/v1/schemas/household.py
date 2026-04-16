@@ -102,6 +102,9 @@ class MemberRead(BaseModel):
 
 # ---- Foyer ----
 
+_DRIVE_PROVIDER_PATTERN = "^(leclerc|auchan|carrefour|intermarche|other)$"
+
+
 class HouseholdCreate(BaseModel):
     """Création d'un nouveau foyer (onboarding step 1)."""
 
@@ -115,6 +118,25 @@ class HouseholdCreate(BaseModel):
     )
 
 
+class HouseholdUpdate(BaseModel):
+    """Mise à jour partielle d'un foyer (PATCH /households/me).
+
+    Tous les champs sont optionnels : seuls les champs fournis sont modifiés.
+    """
+
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+        description="Nouveau nom du foyer.",
+    )
+    drive_provider: str | None = Field(
+        default=None,
+        description="Fournisseur de drive : 'leclerc', 'auchan', 'carrefour', 'intermarche', 'other', ou null pour réinitialiser.",
+        pattern=_DRIVE_PROVIDER_PATTERN,
+    )
+
+
 class HouseholdRead(BaseModel):
     """Lecture d'un foyer avec ses membres."""
 
@@ -123,6 +145,8 @@ class HouseholdRead(BaseModel):
     id: UUID
     name: str
     plan: str
+    drive_provider: str | None = None
+    owner_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
     members: list[MemberRead] = []

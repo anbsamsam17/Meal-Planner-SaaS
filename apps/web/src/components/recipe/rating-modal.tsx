@@ -18,14 +18,14 @@ interface RatingModalProps {
   onClose: () => void;
 }
 
-// FIX Phase 1 mature (review 2026-04-12) — Mismatch B
+// 2026-04-16 — Mismatch corrigé : "Adoré !" → feedback_type='favorited'
 // Mapping UI emoji → contrat backend Pydantic FeedbackCreate
 // Backend attend : "cooked" | "skipped" | "favorited"
-// 😍 Adoré     → "cooked" (a cuisiné et adoré) + rating 5
+// 😍 Adoré     → "favorited" (marqué comme favori) + rating 5
 // 🙂 Correct   → "cooked" (a cuisiné, c'était correct) + rating 3
 // 😕 Pas terrible → "skipped" (a évité / ne referait pas) + rating 1
 const QUICK_RATINGS = [
-  { emoji: "😍", label: "Adoré !", feedbackType: "cooked" as BackendFeedbackType, rating: 5 },
+  { emoji: "😍", label: "Adoré !", feedbackType: "favorited" as BackendFeedbackType, rating: 5 },
   { emoji: "🙂", label: "Correct", feedbackType: "cooked" as BackendFeedbackType, rating: 3 },
   { emoji: "😕", label: "Pas terrible", feedbackType: "skipped" as BackendFeedbackType, rating: 1 },
 ] as const;
@@ -34,8 +34,9 @@ const QUICK_RATINGS = [
 type UiEmojiKey = "loved" | "ok" | "disliked";
 
 // Table de correspondance UI → backend (utilisée dans handleSubmit)
+// 2026-04-16 : "loved" → "favorited" pour aligner l'emoji "😍 Adoré !" sur le vrai favori
 const UI_TO_BACKEND_FEEDBACK: Record<UiEmojiKey, BackendFeedbackType> = {
-  loved: "cooked",
+  loved: "favorited",
   ok: "cooked",
   disliked: "skipped",
 };

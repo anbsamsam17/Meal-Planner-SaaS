@@ -146,6 +146,30 @@ export interface HouseholdMember {
   created_at: string;
 }
 
+// --- Household API (réponse brute du backend — utilisée par account/page.tsx et account-content.tsx) ---
+
+export interface HouseholdMemberAPI {
+  id: string;
+  display_name: string;
+  is_child: boolean;
+  birth_date: string | null;
+  diet_tags: string[];
+  allergies: string[];
+  dislikes: string[];
+}
+
+export interface HouseholdAPI {
+  id: string;
+  owner_id: string;
+  name: string;
+  drive_provider: string | null;
+}
+
+export interface HouseholdAPIResponse {
+  household: HouseholdAPI;
+  members: HouseholdMemberAPI[];
+}
+
 // --- Feedback (notation recette) ---
 
 // FIX Phase 1 mature (review 2026-04-12) — Mismatch B : enum aligné sur le backend
@@ -239,10 +263,20 @@ export interface FridgeItemCreate {
   expiry_date?: string | null; // ISO date YYYY-MM-DD
 }
 
-export interface FridgeSuggestionsResponse {
-  recipes: Recipe[];
-  matched_ingredients: string[]; // Ingrédients du frigo utilisés
+// Format exact retourné par POST /api/v1/fridge/suggest-recipes
+// Backend schéma Pydantic : RecipeSuggestion (liste plate, pas d'enveloppe)
+export interface RecipeSuggestion {
+  recipe_id: string;          // UUID sérialisé en string
+  title: string;
+  total_time_min: number | null;
+  difficulty: number | null;   // entier 1-5 (pas de label textuel ici)
+  matching_ingredients: string[]; // noms canoniques des ingrédients du frigo matchés
+  match_count: number;
+  has_expiring_items: boolean; // true si au moins un ingrédient expire dans ≤ 3 jours
 }
+
+// Alias gardé pour rétrocompatibilité potentielle — utiliser RecipeSuggestion[] désormais
+export type FridgeSuggestionsResponse = RecipeSuggestion[];
 
 // --- Livres PDF hebdomadaires ---
 
