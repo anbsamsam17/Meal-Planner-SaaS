@@ -234,7 +234,8 @@ async def generate_plan(
 
         normalized_style = _STYLE_NORMALIZE.get(body.style, body.style) if body.style else None
         if normalized_style == "végétarien":
-            # Exclure les recettes contenant viande ou poisson
+            # Ingrédient-based uniquement : les données nutritionnelles ne permettent pas
+            # de détecter la présence de viande/poisson.
             conditions.append("""
                 NOT EXISTS (
                     SELECT 1 FROM recipe_ingredients ri
@@ -243,28 +244,20 @@ async def generate_plan(
                 )
             """)
         elif normalized_style == "protéiné":
-            # Recettes avec au moins un ingrédient riche en protéines
+            # Tag-first (Gemini script), puis nutrition (protein_g >= 25g/portion).
+            # Pas de fallback ingrédient : trop imprécis (1 seul ingrédient suffisait).
             conditions.append("""
-                EXISTS (
-                    SELECT 1 FROM recipe_ingredients ri
-                    JOIN ingredients i ON i.id = ri.ingredient_id
-                    WHERE ri.recipe_id = recipes.id AND i.category IN ('meat', 'fish', 'legumes')
+                (
+                    'protéiné' = ANY(tags)
+                    OR (nutrition != '{}' AND (nutrition->>'protein_g')::float >= 25)
                 )
             """)
         elif normalized_style == "léger":
-            # Pas de viande, riche en légumes/fruits/poisson
+            # Tag-first (Gemini script), puis nutrition (calories <= 500 ET fat_g <= 20).
             conditions.append("""
-                NOT EXISTS (
-                    SELECT 1 FROM recipe_ingredients ri
-                    JOIN ingredients i ON i.id = ri.ingredient_id
-                    WHERE ri.recipe_id = recipes.id AND i.category = 'meat'
-                )
-            """)
-            conditions.append("""
-                EXISTS (
-                    SELECT 1 FROM recipe_ingredients ri
-                    JOIN ingredients i ON i.id = ri.ingredient_id
-                    WHERE ri.recipe_id = recipes.id AND i.category IN ('vegetables', 'fruits', 'fish')
+                (
+                    'léger' = ANY(tags)
+                    OR (nutrition != '{}' AND (nutrition->>'calories')::int <= 500 AND (nutrition->>'fat_g')::float <= 20)
                 )
             """)
         # gourmand: pas de filtre restrictif — toutes les recettes sont éligibles
@@ -1267,6 +1260,8 @@ async def get_recipe_suggestions(
 
     normalized_style = _STYLE_NORMALIZE.get(style, style) if style else None
     if normalized_style == "végétarien":
+        # Ingrédient-based uniquement : les données nutritionnelles ne permettent pas
+        # de détecter la présence de viande/poisson.
         conditions.append("""
             NOT EXISTS (
                 SELECT 1 FROM recipe_ingredients ri
@@ -1275,26 +1270,20 @@ async def get_recipe_suggestions(
             )
         """)
     elif normalized_style == "protéiné":
+        # Tag-first (Gemini script), puis nutrition (protein_g >= 25g/portion).
+        # Pas de fallback ingrédient : trop imprécis (1 seul ingrédient suffisait).
         conditions.append("""
-            EXISTS (
-                SELECT 1 FROM recipe_ingredients ri
-                JOIN ingredients i ON i.id = ri.ingredient_id
-                WHERE ri.recipe_id = recipes.id AND i.category IN ('meat', 'fish', 'legumes')
+            (
+                'protéiné' = ANY(tags)
+                OR (nutrition != '{}' AND (nutrition->>'protein_g')::float >= 25)
             )
         """)
     elif normalized_style == "léger":
+        # Tag-first (Gemini script), puis nutrition (calories <= 500 ET fat_g <= 20).
         conditions.append("""
-            NOT EXISTS (
-                SELECT 1 FROM recipe_ingredients ri
-                JOIN ingredients i ON i.id = ri.ingredient_id
-                WHERE ri.recipe_id = recipes.id AND i.category = 'meat'
-            )
-        """)
-        conditions.append("""
-            EXISTS (
-                SELECT 1 FROM recipe_ingredients ri
-                JOIN ingredients i ON i.id = ri.ingredient_id
-                WHERE ri.recipe_id = recipes.id AND i.category IN ('vegetables', 'fruits', 'fish')
+            (
+                'léger' = ANY(tags)
+                OR (nutrition != '{}' AND (nutrition->>'calories')::int <= 500 AND (nutrition->>'fat_g')::float <= 20)
             )
         """)
     elif normalized_style == "rapide":
