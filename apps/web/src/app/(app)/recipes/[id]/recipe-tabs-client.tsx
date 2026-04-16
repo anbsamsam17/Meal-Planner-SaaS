@@ -183,56 +183,72 @@ export function RecipeTabsClient({ recipe }: RecipeTabsClientProps) {
 
         {/* Onglet Nutrition */}
         <RadixTabs.Content value="nutrition" className="focus-visible:outline-none">
-          <div className="space-y-4">
-            {/* 3 badges principaux : Glucides / Proteines / Lipides */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center dark:border-amber-800 dark:bg-amber-900/20">
-                <div className="font-mono text-xl font-bold text-amber-700 dark:text-amber-400">
-                  {hasNutrition && nutrition.carbs_g != null ? `${nutrition.carbs_g}g` : "~45g"}
+          {hasNutrition ? (
+            <div className="space-y-4">
+              {/* Calories — badge principal */}
+              <div className="rounded-xl border border-[#E2725B]/20 bg-[#fff8f6] p-5 text-center dark:border-[#E2725B]/30 dark:bg-[#E2725B]/10">
+                <div className="font-mono text-3xl font-bold text-[#E2725B]">
+                  {nutrition.calories} <span className="text-lg font-medium">kcal</span>
                 </div>
-                <div className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-500">
-                  Glucides
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center dark:border-emerald-800 dark:bg-emerald-900/20">
-                <div className="font-mono text-xl font-bold text-emerald-700 dark:text-emerald-400">
-                  {hasNutrition && nutrition.proteins_g != null ? `${nutrition.proteins_g}g` : "~25g"}
-                </div>
-                <div className="mt-1 text-xs font-medium text-emerald-600 dark:text-emerald-500">
-                  Proteines
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-center dark:border-blue-800 dark:bg-blue-900/20">
-                <div className="font-mono text-xl font-bold text-blue-700 dark:text-blue-400">
-                  {hasNutrition && nutrition.fat_g != null ? `${nutrition.fat_g}g` : "~15g"}
-                </div>
-                <div className="mt-1 text-xs font-medium text-blue-600 dark:text-blue-500">
-                  Lipides
-                </div>
-              </div>
-            </div>
-
-            {/* Calories si disponibles */}
-            {hasNutrition && nutrition.calories != null && (
-              <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-center dark:border-neutral-700 dark:bg-neutral-800">
-                <div className="font-mono text-xl font-bold text-neutral-900 dark:text-neutral-100">
-                  {nutrition.calories} kcal
-                </div>
-                <div className="mt-1 text-xs font-medium text-neutral-600 dark:text-neutral-300">
+                <div className="mt-1 text-xs font-medium text-[#857370] dark:text-neutral-400">
                   par portion
                 </div>
               </div>
-            )}
 
-            {/* Disclaimer */}
-            <p className="text-center text-xs text-neutral-400 dark:text-neutral-500">
-              {hasNutrition
-                ? `Valeurs pour ${recipe.servings ?? 1} portion${(recipe.servings ?? 1) > 1 ? "s" : ""}`
-                : "Valeurs estimees -- les donnees nutritionnelles exactes seront bientot disponibles"}
-            </p>
-          </div>
+              {/* 3 macros : Proteines / Glucides / Lipides */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center dark:border-emerald-800 dark:bg-emerald-900/20">
+                  <div className="font-mono text-xl font-bold text-emerald-700 dark:text-emerald-400">
+                    {nutrition.proteins_g}g
+                  </div>
+                  <div className="mt-1 text-xs font-medium text-emerald-600 dark:text-emerald-500">
+                    Proteines
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center dark:border-amber-800 dark:bg-amber-900/20">
+                  <div className="font-mono text-xl font-bold text-amber-700 dark:text-amber-400">
+                    {nutrition.carbs_g}g
+                  </div>
+                  <div className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-500">
+                    Glucides
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-center dark:border-blue-800 dark:bg-blue-900/20">
+                  <div className="font-mono text-xl font-bold text-blue-700 dark:text-blue-400">
+                    {nutrition.fat_g}g
+                  </div>
+                  <div className="mt-1 text-xs font-medium text-blue-600 dark:text-blue-500">
+                    Lipides
+                  </div>
+                </div>
+              </div>
+
+              {/* Fibres si disponibles */}
+              {nutrition.fiber_g != null && (
+                <div className="rounded-xl border border-lime-200 bg-lime-50 p-3 text-center dark:border-lime-800 dark:bg-lime-900/20">
+                  <span className="font-mono text-base font-bold text-lime-700 dark:text-lime-400">
+                    {nutrition.fiber_g}g
+                  </span>
+                  <span className="ml-2 text-xs font-medium text-lime-600 dark:text-lime-500">
+                    Fibres
+                  </span>
+                </div>
+              )}
+
+              {/* Disclaimer */}
+              <p className="text-center text-xs text-neutral-400 dark:text-neutral-500">
+                Valeurs estimees par portion ({recipe.servings ?? 1} pers.)
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-8 text-center dark:border-neutral-700 dark:bg-neutral-800">
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Les donnees nutritionnelles ne sont pas encore disponibles pour cette recette.
+              </p>
+            </div>
+          )}
         </RadixTabs.Content>
       </RadixTabs.Root>
 

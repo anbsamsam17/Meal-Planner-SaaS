@@ -44,6 +44,16 @@ router = APIRouter(prefix="/recipes", tags=["recipes"])
 # -------------------------------------------------------------------------
 
 
+class NutritionOut(BaseModel):
+    """Macronutriments par portion (estimés ou réels)."""
+
+    calories: int = 0
+    protein_g: float = 0.0
+    fat_g: float = 0.0
+    carbs_g: float = 0.0
+    fiber_g: float | None = None
+
+
 class RecipeOut(BaseModel):
     """Représentation publique d'une recette (sans données privées foyer)."""
 
@@ -62,6 +72,7 @@ class RecipeOut(BaseModel):
     tags: list[str] = []
     quality_score: float | None = Field(default=None, ge=0.0, le=1.0)
     course: str | None = None
+    nutrition: NutritionOut | None = None
 
     model_config = {"from_attributes": True}
 
@@ -662,7 +673,8 @@ async def get_recipe(
                     """
                     SELECT id, title, slug, source, servings, prep_time_min,
                            cook_time_min, total_time_min, difficulty, cuisine_type,
-                           photo_url, description, tags, quality_score, course, instructions
+                           photo_url, description, tags, quality_score, course,
+                           instructions, nutrition
                     FROM recipes
                     WHERE id = :recipe_id
                     LIMIT 1
@@ -711,6 +723,10 @@ async def get_recipe(
 
         # BUG 2 FIX (2026-04-12) : construction explicite avec valeurs par défaut sûres
         # pour éviter le crash frontend sur champs null/undefined.
+        # Nutrition JSONB → NutritionOut (None si objet vide)
+        raw_nutrition = recipe_data.get("nutrition") or {}
+        nutrition_out = NutritionOut(**raw_nutrition) if raw_nutrition else None
+
         detail = RecipeDetail(
             id=recipe_data["id"],
             title=recipe_data["title"],
@@ -727,6 +743,7 @@ async def get_recipe(
             tags=recipe_data.get("tags") or [],
             quality_score=recipe_data.get("quality_score"),
             instructions=recipe_data.get("instructions") or [],
+            nutrition=nutrition_out,
             ingredients=[
                 RecipeIngredientDetail.model_validate(ing) for ing in ingredients_data
             ],

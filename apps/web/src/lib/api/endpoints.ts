@@ -422,6 +422,16 @@ function normalizeRecipe(apiRecipe: Record<string, unknown>): Recipe {
     rating_average: raw.quality_score != null ? Math.min(5, raw.quality_score * 5) : (raw.rating_average ?? null),
     rating_count: raw.rating_count ?? 0,
     servings: raw.servings ?? null,
+    // Nutrition — mapper protein_g (API) → proteins_g (type frontend)
+    nutrition: raw.nutrition
+      ? {
+          calories: raw.nutrition.calories ?? 0,
+          proteins_g: raw.nutrition.protein_g ?? 0,
+          carbs_g: raw.nutrition.carbs_g ?? 0,
+          fat_g: raw.nutrition.fat_g ?? 0,
+          fiber_g: raw.nutrition.fiber_g ?? null,
+        }
+      : null,
     // Champs API originaux conservés pour les composants qui les lisent directement
     photo_url: raw.photo_url ?? null,
     total_time_min: raw.total_time_min ?? null,

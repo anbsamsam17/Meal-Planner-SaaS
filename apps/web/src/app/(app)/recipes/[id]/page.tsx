@@ -79,6 +79,19 @@ async function fetchRecipe(id: string) {
       // Garantir que les tableaux sont bien des tableaux (jamais null/undefined)
       data.instructions = Array.isArray(data.instructions) ? data.instructions : [];
 
+      // Nutrition : mapper protein_g (API) -> proteins_g (type frontend)
+      if (data.nutrition && typeof data.nutrition === "object" && Object.keys(data.nutrition).length > 0) {
+        data.nutrition = {
+          calories: data.nutrition.calories ?? 0,
+          proteins_g: data.nutrition.protein_g ?? 0,
+          carbs_g: data.nutrition.carbs_g ?? 0,
+          fat_g: data.nutrition.fat_g ?? 0,
+          fiber_g: data.nutrition.fiber_g ?? null,
+        };
+      } else {
+        data.nutrition = null;
+      }
+
       // Normalisation des ingredients : l'API retourne le format brut du catalogue
       // { ingredient_id, canonical_name, quantity, unit, notes, position }
       // alors que le type Ingredient frontend attend
